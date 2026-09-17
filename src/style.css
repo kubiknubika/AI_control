@@ -1031,6 +1031,11 @@ h1 {
   stroke: rgb(134 239 172 / 88%);
 }
 
+.hex-svg-cell.is-hover-reachable polygon {
+  fill: rgb(146 64 14 / 90%);
+  stroke: rgb(253 186 116 / 92%);
+}
+
 .hex-svg-cell.is-selected polygon {
   fill: rgb(37 99 235 / 94%);
   stroke: #dbeafe;

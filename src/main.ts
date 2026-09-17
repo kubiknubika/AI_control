@@ -156,6 +156,7 @@ interface Test2State {
   scheduleIndex: number;
   cycle: number;
   selected: Test2Faction | null;
+  hovered: Test2Faction | null;
   result: 'win' | 'lose' | null;
   aiBusy: boolean;
   aiAnimation: 'move' | 'attack' | null;
@@ -271,6 +272,7 @@ function createTest2State(): Test2State {
     scheduleIndex: 0,
     cycle: 1,
     selected: 'knights',
+    hovered: null,
     result: null,
     aiBusy: false,
     aiAnimation: null,
@@ -436,18 +438,37 @@ function renderTest2(): void {
   const currentFaction = test2State.schedule[test2State.scheduleIndex];
   const currentStack = test2State.stacks[currentFaction];
   const selectedStack = test2State.selected ? test2State.stacks[test2State.selected] : null;
+  const hoveredStack = test2State.hovered ? test2State.stacks[test2State.hovered] : null;
   const reachableCells = new Set<string>();
+  const hoverReachableCells = new Set<string>();
+  const showHoverRange = Boolean(hoveredStack && !test2State.result && !test2State.aiBusy && !test2State.playerBusy);
 
-  if (currentFaction === 'knights' && selectedStack?.id === 'knights' && selectedStack.count > 0) {
+  const addMovementCells = (stack: Test2Stack, availableActionPoints: number, targetSet: Set<string>): void => {
+    const movementPoints = Math.min(3, availableActionPoints);
+    if (stack.count <= 0 || movementPoints <= 0) {
+      return;
+    }
+
     for (let y = 0; y < TEST2_HEIGHT; y += 1) {
       for (let x = 0; x < TEST2_WIDTH; x += 1) {
         const occupant = test2StackAt(x, y);
-        const path = !occupant ? test2FindPath(selectedStack.x, selectedStack.y, x, y) : null;
-        if (path && path.length > 0 && path.length <= selectedStack.actionPoints) {
-          reachableCells.add(test2HexKey(x, y));
+        const path = !occupant ? test2FindPath(stack.x, stack.y, x, y) : null;
+        if (path && path.length > 0 && path.length <= movementPoints) {
+          targetSet.add(test2HexKey(x, y));
         }
       }
     }
+  };
+
+  if (currentFaction === 'knights' && selectedStack?.id === 'knights') {
+    addMovementCells(selectedStack, selectedStack.actionPoints, reachableCells);
+  }
+
+  if (showHoverRange && hoveredStack) {
+    const availableActionPoints = hoveredStack.id === currentFaction && hoveredStack.actionPoints > 0
+      ? hoveredStack.actionPoints
+      : hoveredStack.maxActionPoints;
+    addMovementCells(hoveredStack, availableActionPoints, hoverReachableCells);
   }
 
   const boardMarkup = (() => {
@@ -464,7 +485,8 @@ function renderTest2(): void {
       const cellKey = test2HexKey(x, y);
       const classes = [
         'hex-svg-cell',
-        reachableCells.has(cellKey) ? 'is-reachable' : '',
+        !showHoverRange && reachableCells.has(cellKey) ? 'is-reachable' : '',
+        showHoverRange && hoverReachableCells.has(cellKey) ? 'is-hover-reachable' : '',
         stack && stack.id === 'knights' ? 'is-knights' : '',
         stack && stack.id === 'demons' ? 'is-demons' : '',
         stack && test2State.selected === stack.id ? 'is-selected' : '',
@@ -661,7 +683,7 @@ function renderTest2(): void {
           <section class="hex-board-panel" aria-label="Гексовое поле 12 на 6">
             <div class="hex-board-meta">
               <strong>Поле 12×6</strong>
-              <span>Синие — ваши · красные — ИИ · режим melee</span>
+              <span>Синие — ваши · красные — ИИ · зелёные — ход · янтарные — маршрут</span>
             </div>
             ${boardMarkup}
             ${resultMarkup}
@@ -1257,7 +1279,8 @@ async function handleTest2Cell(x: number, y: number): Promise<void> {
   }
 
   const path = test2FindPath(knights.x, knights.y, x, y);
-  if (!path || path.length === 0 || path.length > knights.actionPoints) {
+  const movementPoints = Math.min(3, knights.actionPoints);
+  if (!path || path.length === 0 || path.length > movementPoints) {
     test2AddLog('Эта клетка находится дальше доступного перемещения.');
     render('test2');
     return;
@@ -1761,6 +1784,36 @@ function updateVolumeSetting(target: HTMLInputElement): void {
     output.textContent = `${value}%`;
   }
 }
+
+app.addEventListener('pointermove', (event: PointerEvent) => {
+  if (activeScreen !== 'test2' || test2State.result || test2State.aiBusy || test2State.playerBusy) {
+    return;
+  }
+
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  const cell = target.closest('[data-hex-x][data-hex-y]') as HTMLElement | null;
+  const hoveredStack = cell
+    ? test2StackAt(Number(cell.dataset.hexX), Number(cell.dataset.hexY))
+    : null;
+  const nextHovered = hoveredStack?.id ?? null;
+  if (test2State.hovered === nextHovered) {
+    return;
+  }
+
+  test2State.hovered = nextHovered;
+  render('test2');
+});
+
+app.addEventListener('pointerleave', () => {
+  if (activeScreen === 'test2' && test2State.hovered !== null) {
+    test2State.hovered = null;
+    render('test2');
+  }
+});
 
 app.addEventListener('click', (event: MouseEvent) => {
   const clickedElement = event.target;
