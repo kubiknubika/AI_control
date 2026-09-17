@@ -2414,7 +2414,9 @@ h1 {
   stroke-width: 1.7;
 }
 
-.test3-icon-svg path {
+.test3-icon-svg path,
+.test3-icon-svg circle,
+.test3-icon-svg ellipse {
   vector-effect: non-scaling-stroke;
 }
 

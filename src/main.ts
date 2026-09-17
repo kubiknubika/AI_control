@@ -1445,13 +1445,13 @@ type Test3UiIcon = Test3Resource | 'workers' | 'army' | 'fleet';
 
 function test3UiIcon(type: Test3UiIcon): string {
   const icons: Record<Test3UiIcon, string> = {
-    gold: '<circle cx="16" cy="16" r="10"/><path d="M12 13h7M13 18h6M16 10v12"/>',
-    wood: '<path d="M7 9c0-3 4-4 9-4s9 1 9 4v14c0 3-4 5-9 5s-9-2-9-5V9Z"/><path d="M7 9c0 3 4 5 9 5s9-2 9-5M7 16c0 3 4 5 9 5s9-2 9-5"/>',
-    stone: '<path d="m16 4 10 6v12l-10 6-10-6V10l10-6Z"/><path d="m6 10 10 6 10-6M16 16v12"/>',
-    food: '<path d="M5 16h22l-2 8H7l-2-8ZM8 12c2-5 5-5 8 0 3-5 6-5 8 0M10 24v3M22 24v3"/>',
-    workers: '<circle cx="16" cy="9" r="4"/><path d="M8 27c0-6 3-9 8-9s8 3 8 9M5 17v8M2 20h6"/>',
-    army: '<path d="M16 4 26 8v7c0 7-4 11-10 14C10 26 6 22 6 15V8l10-4Z"/><path d="m11 16 3 3 7-8"/>',
-    fleet: '<path d="M5 22h22l-3 5H8l-3-5ZM9 22l3-11h8l3 11M16 11V5M16 6l8 5H16"/><path d="M3 28c3 2 5-2 8 0s5-2 8 0 5-2 10 0"/>',
+    gold: '<ellipse cx="16" cy="8" rx="9" ry="4"/><path d="M7 8v4c0 2 4 4 9 4s9-2 9-4V8M7 12v5c0 2 4 4 9 4s9-2 9-4v-5M7 17v5c0 2 4 4 9 4s9-2 9-4v-5"/>',
+    wood: '<path d="M8 10h16c2 0 4 2 4 6s-2 6-4 6H8c-2 0-4-2-4-6s2-6 4-6Z"/><ellipse cx="8" cy="16" rx="4" ry="6"/><path d="M18 11v10M22 11v10M25 12v8"/>',
+    stone: '<path d="m5 23 3-10 8-5 9 5 2 10-7 5H9l-4-5Z"/><path d="m8 13 8 5 9-5M16 18v10M12 15l2-3M21 21l3-2"/>',
+    food: '<path d="M16 28V7M16 13 9 7M16 18l8-8M12 28V14M12 17l-6-6M20 28V13M20 17l6-6M9 7l-2-2M24 10l2-2M6 11l-2-1M26 11l2-1"/>',
+    workers: '<path d="M10 11c0-3 2-5 6-5s6 2 6 5M8 12h16M16 6V4M8 28c0-6 3-9 8-9s8 3 8 9M5 18l4 4M27 18l-4 4"/><circle cx="16" cy="12" r="4"/>',
+    army: '<path d="M16 4 25 8v7c0 7-3 11-9 14-6-3-9-7-9-14V8l9-4Z"/><path d="m10 22 12-12M18 9l5 5M9 23l4-1"/>',
+    fleet: '<path d="M4 22h24l-4 5H8l-4-5ZM9 22l3-12h7l4 12M16 10V4M16 5l8 5H16"/><path d="M3 28c3 2 5-2 8 0s5-2 8 0 5-2 10 0"/>',
   };
   return `<svg class="test3-ui-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
 }
@@ -1462,15 +1462,15 @@ function test3CostLabel(resource: Test3Resource, value: number): string {
 
 function test3BuildingIcon(type: Test3BuildingType): string {
   const icons: Record<Test3BuildingType, string> = {
-    townHall: '<path d="M5 28V12l11-7 11 7v16H5Z"/><path d="M12 28V17h8v11M3 13l13-8 13 8M16 3v5M8 15h4M20 15h4"/>',
-    goldMine: '<path d="m4 25 6-8 5 4 5-9 8 13H4Z"/><path d="M7 25h18M11 11l3-5 3 5M13 6v7"/>',
-    sawmill: '<path d="M5 27V14h22v13M3 14h26L16 7 3 14Z"/><path d="M9 18h4v5H9zM19 18h4v5h-4zM16 7v20"/>',
-    quarry: '<path d="m4 27 7-14 5 7 5-11 7 18H4Z"/><path d="m10 10 3-5 4 5M13 5v9M7 27h19"/>',
-    house: '<path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M12 28V19h8v9M8 16h4M20 16h4"/>',
-    warehouse: '<path d="M4 12 16 5l12 7v16H4V12Z"/><path d="M8 16h5v5H8zM19 16h5v5h-5zM8 24h16M16 12v16"/>',
-    barracks: '<path d="M4 12h24v16H4V12ZM8 12V7h16v5M10 17h4v5h-4zM18 17h4v5h-4z"/><path d="M16 3v8M13 6h6M16 3l-3 3M16 3l3 3"/>',
-    shipyard: '<path d="M5 23h22l-3 5H8l-3-5ZM9 23l3-12h8l3 12M16 11V4M16 5l8 5H16"/><path d="M3 28c3 2 5-2 8 0s5-2 8 0 5-2 10 0"/>',
-    fishingYard: '<path d="M4 22h24l-4 6H8l-4-6ZM9 22l3-9h8l3 9M16 13V6M16 7l7 4H16"/><path d="M4 9c2-3 4 3 6 0s4 3 6 0 4 3 6 0 4 3 6 0"/>',
+    townHall: '<path d="M4 28h24M7 28V14h18v14M4 14h24L16 7 4 14Z"/><path d="M16 7V3l5 2-5 2M10 18v10M16 18v10M22 18v10"/><circle cx="16" cy="13" r="2"/>',
+    goldMine: '<path d="M5 27h22M8 27V18a8 8 0 0 1 16 0v9M12 27v-9a4 4 0 0 1 8 0v9"/><path d="M5 7h11M9 4v3M9 7l10 10"/><path d="m12 24 2-2 2 2 2-2 2 2"/>',
+    sawmill: '<path d="M4 27h24M6 27v-7h10v7M6 20h10"/><circle cx="22" cy="16" r="7"/><circle cx="22" cy="16" r="2"/><path d="M22 9v5M22 18v5M15 16h5M24 16h5M17 11l3 3M24 18l3 3M27 11l-3 3M20 18l-3 3"/>',
+    quarry: '<path d="M5 12h18l4 4v12H5V12Z"/><path d="M5 18h22M11 12v6M19 18v10M8 23l4-3 3 4 4-3 4 2"/><path d="M20 4h8v4h-8zM24 8v11M21 19h6"/>',
+    house: '<path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M12 28V19h8v9M8 15V9h4v3M9 17h3M20 16h4"/>',
+    warehouse: '<path d="M3 11h26v17H3V11ZM6 11V7h20v4"/><path d="M7 16h7v8H7zM18 16h7v8h-7zM10 16v8M21 16v8M7 27h18"/>',
+    barracks: '<path d="M3 12h26v16H3V12ZM6 12V8h20v4M7 17h3v3H7zM24 17h3v3h-3z"/><path d="M16 11 21 13v4c0 4-2 6-5 8-3-2-5-4-5-8v-4l5-2Z"/><path d="m11 11 10 10M21 11 11 21"/>',
+    shipyard: '<path d="M4 27h24M7 23h20l-4 5H10l-3-5Z"/><path d="M11 23V8h2v15M12 9h11v2H12M23 11v8l-4 4M15 16h8"/>',
+    fishingYard: '<path d="M4 18c5-7 12-7 18 0-6 7-13 7-18 0Z"/><path d="m21 18 7-5v10l-7-5Z"/><circle cx="10" cy="16" r="1"/><path d="M5 7c7 4 14 4 22 0M5 11c7 4 14 4 22 0M10 6v8M16 7v8M22 6v8"/>',
   };
   return `<svg class="test3-icon-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
 }
