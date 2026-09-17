@@ -112,6 +112,8 @@ interface Test2State {
   cycle: number;
   selected: Test2Faction | null;
   result: 'win' | 'lose' | null;
+  aiBusy: boolean;
+  aiAnimation: 'move' | 'attack' | null;
   log: string[];
 }
 
@@ -216,6 +218,8 @@ function createTest2State(): Test2State {
     cycle: 1,
     selected: 'knights',
     result: null,
+    aiBusy: false,
+    aiAnimation: null,
     log: [
       `Инициатива: Рыцари ${knights.initiative}, Демоны ${demons.initiative}.`,
       'Рыцари ходят первыми. Выберите клетку или действие.',
@@ -384,48 +388,64 @@ function renderTest2(): void {
     }
   }
 
-  const boardRows = Array.from({ length: TEST2_HEIGHT }, (_, y) => `
-    <div class="hex-row" role="row">
-      ${Array.from({ length: TEST2_WIDTH }, (_, x) => {
-        const stack = test2StackAt(x, y);
-        const cellKey = test2HexKey(x, y);
-        const classes = [
-          'hex-cell',
-          reachableCells.has(cellKey) ? 'is-reachable' : '',
-          stack && stack.id === 'knights' ? 'is-knights' : '',
-          stack && stack.id === 'demons' ? 'is-demons' : '',
-          stack && test2State.selected === stack.id ? 'is-selected' : '',
-        ].filter(Boolean).join(' ');
-        const stackMarkup = stack
-          ? `<span class="hex-unit" data-test2-unit="${stack.id}">
-              <strong>${stack.shortLabel}</strong>
-              <small>×${stack.count}</small>
-            </span>`
-          : '';
-        const tooltipMarkup = stack
-          ? `<div class="hex-hover-info" role="tooltip">
-              <strong>${stack.label} ×${stack.count}</strong>
-              <span>HP отряда: ${Math.round(stack.health)}/${stack.maxHealth}</span>
-              <span>HP бойца: ${stack.unitHealth}</span>
-              <span>Урон: ${stack.damage} · Защита: ${stack.defense}</span>
-              <span>Инициатива: ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</span>
-            </div>`
-          : '';
+  const boardMarkup = (() => {
+    const hexWidth = Math.sqrt(3);
+    const viewBoxWidth = hexWidth * (TEST2_WIDTH + 0.5);
+    const viewBoxHeight = 1.5 * (TEST2_HEIGHT - 1) + 2;
+    const cells = Array.from({ length: TEST2_HEIGHT }, (_, y) => Array.from({ length: TEST2_WIDTH }, (_, x) => {
+      const stack = test2StackAt(x, y);
+      const cellKey = test2HexKey(x, y);
+      const classes = [
+        'hex-svg-cell',
+        reachableCells.has(cellKey) ? 'is-reachable' : '',
+        stack && stack.id === 'knights' ? 'is-knights' : '',
+        stack && stack.id === 'demons' ? 'is-demons' : '',
+        stack && test2State.selected === stack.id ? 'is-selected' : '',
+      ].filter(Boolean).join(' ');
+      const centerX = hexWidth / 2 + x * hexWidth + (y % 2 === 1 ? hexWidth / 2 : 0);
+      const centerY = 1 + y * 1.5;
+      const points = Array.from({ length: 6 }, (_, index) => {
+        const angle = Math.PI / 6 + (Math.PI / 3) * index;
+        return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
+      }).join(' ');
+      const unitMarkup = stack
+        ? `<g class="hex-svg-unit" data-test2-unit="${stack.id}">
+            <circle cx="${centerX}" cy="${centerY}" r="0.5"></circle>
+            <text x="${centerX}" y="${centerY + 0.08}">×${stack.count}</text>
+          </g>`
+        : '';
+      const tooltipMarkup = stack
+        ? `<g class="hex-svg-tooltip" transform="translate(${Math.max(0, Math.min(viewBoxWidth - 5.9, centerX - 2.95))},0.12)">
+            <rect width="5.9" height="2.15" rx="0.12"></rect>
+            <text class="tooltip-title" x="0.2" y="0.38">${stack.label} ×${stack.count}</text>
+            <text x="0.2" y="0.78">HP: ${Math.round(stack.health)}/${stack.maxHealth} · боец: ${stack.unitHealth}</text>
+            <text x="0.2" y="1.16">Урон: ${stack.damage} · Защита: ${stack.defense}</text>
+            <text x="0.2" y="1.54">Инициатива: ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</text>
+            <text x="0.2" y="1.92">Наведите для характеристик отряда</text>
+          </g>`
+        : '';
 
-        return `<div class="hex-cell-wrap">
-          <button class="${classes}" type="button" data-hex-x="${x}" data-hex-y="${y}" aria-label="Клетка ${x + 1}, ${y + 1}">${stackMarkup}</button>
-          ${tooltipMarkup}
-        </div>`;
-      }).join('')}
-    </div>
-  `).join('');
+      return `<g class="${classes}" data-hex-x="${x}" data-hex-y="${y}" tabindex="0" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
+        <polygon points="${points}"></polygon>
+        ${unitMarkup}
+        ${tooltipMarkup}
+      </g>`;
+    }).join('')).join('');
+
+    return `<div class="hex-board">
+      <svg class="test2-hex-svg" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" role="grid" aria-label="Гексовое поле 12 на 6">
+        ${cells}
+      </svg>
+    </div>`;
+  })();
 
   const orderMarkup = test2State.schedule.map((faction, index) => {
     const ordinal = test2State.schedule.slice(0, index + 1).filter((item) => item === faction).length;
     const current = index === test2State.scheduleIndex ? ' is-current' : '';
     return `<span class="test2-order-item ${faction}${current}">${faction === 'knights' ? 'Рыцари' : 'Демоны'} ${ordinal}</span>`;
   }).join('');
-  const actionDisabled = currentFaction !== 'knights' || test2State.result !== null ? ' disabled' : '';
+  const actionDisabled = currentFaction !== 'knights' || test2State.result !== null || test2State.aiBusy ? ' disabled' : '';
+  const aiAnimationClass = test2State.aiBusy && test2State.aiAnimation ? ` is-ai-${test2State.aiAnimation}` : '';
   const healDisabled = actionDisabled || currentStack.abilityUsed || currentStack.actionPoints < 1 ? ' disabled' : '';
   const resultMarkup = test2State.result
     ? `<div class="test2-result ${test2State.result}">${test2State.result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.'}</div>`
@@ -433,7 +453,7 @@ function renderTest2(): void {
   const logMarkup = test2State.log.slice(-7).map((entry) => `<li>${entry}</li>`).join('');
 
   app.innerHTML = `
-    <main class="test2-screen" aria-labelledby="test2-title">
+    <main class="test2-screen${aiAnimationClass}" aria-labelledby="test2-title">
       <section class="test2-card">
         <header class="test2-header">
           <div>
@@ -461,16 +481,11 @@ function renderTest2(): void {
               <strong>Поле 12×6</strong>
               <span>Синие — ваши · красные — ИИ</span>
             </div>
-            <div class="hex-board" role="grid">
-              ${boardRows}
-            </div>
-            <p class="hex-help">Выберите Рыцарей и нажмите на подсвеченную клетку. Перемещение стоит 1 очко действия за клетку.</p>
+            ${boardMarkup}
+            <p class="hex-help">Выберите Рыцарей и нажмите на подсвеченную клетку. Для атаки нажмите на Демонов: игра проверит расстояние и ОД.</p>
           </section>
 
-          <aside class="test2-sidebar">
-            ${renderTest2StackCard(test2State.stacks.knights, 'player')}
-            ${renderTest2StackCard(test2State.stacks.demons, 'ai')}
-
+          <div class="test2-bottom-layout">
             <section class="test2-actions-panel">
               <div class="test2-ap-line">
                 <span>Очки действий</span>
@@ -478,7 +493,7 @@ function renderTest2(): void {
               </div>
               <div class="test2-action test2-action-attack test2-action-hint">
                 <strong>Атаковать</strong>
-                <small>Нажмите на Демонов · ОД на подход + удар
+                <small>Нажмите на Демонов · ОД на подход + удар</small>
               </div>
               <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
                 <strong>Исцелить отряд</strong>
@@ -494,7 +509,7 @@ function renderTest2(): void {
               <h2 id="test2-log-title">Журнал</h2>
               <ol>${logMarkup}</ol>
             </section>
-          </aside>
+          </div>
         </div>
 
         ${resultMarkup}
@@ -504,31 +519,6 @@ function renderTest2(): void {
         </button>
       </section>
     </main>
-  `;
-}
-
-function renderTest2StackCard(stack: Test2Stack, side: 'player' | 'ai'): string {
-  const current = test2State.schedule[test2State.scheduleIndex] === stack.id ? ' is-active' : '';
-  const healthPercentValue = Math.max(0, Math.min(100, (stack.health / stack.maxHealth) * 100));
-
-  return `
-    <section class="test2-army-card ${side}${current}">
-      <div class="test2-army-heading">
-        <strong>${stack.label}</strong>
-        <span>×${stack.count}</span>
-      </div>
-      <div class="test2-army-health">
-        <span style="width: ${healthPercentValue}%"></span>
-      </div>
-      <div class="test2-army-health-label">Отряд: ${Math.max(0, Math.round(stack.health))}/${stack.maxHealth} HP</div>
-      <div class="test2-stat-grid">
-        <span>HP бойца <b>${stack.unitHealth}</b></span>
-        <span>Урон <b>${stack.damage}</b></span>
-        <span>Защита <b>${stack.defense}</b></span>
-        <span>Инициатива <b>${stack.initiative}</b></span>
-        <span>ОД <b>${stack.maxActionPoints}</b></span>
-      </div>
-    </section>
   `;
 }
 
@@ -715,7 +705,7 @@ function test2Heal(): boolean {
   return true;
 }
 
-function performTest2AiTurn(): void {
+async function performTest2AiTurn(): Promise<void> {
   const demons = test2State.stacks.demons;
   const knights = test2State.stacks.knights;
 
@@ -737,21 +727,30 @@ function performTest2AiTurn(): void {
     demons.y = nextCell[1];
     demons.actionPoints -= 1;
     moved += 1;
+    test2State.aiAnimation = 'move';
+    test2AddLog(`Демоны переместились. Осталось ОД: ${demons.actionPoints}.`);
+    render('test2');
+    await wait(320);
   }
 
-  if (moved > 0) {
-    test2AddLog(`Демоны приближаются к рыцарям на ${moved} клеток.`);
+  if (moved === 0) {
+    test2AddLog('Демоны уже рядом с рыцарями.');
   }
 
   if (test2CanAttack('demons') && demons.actionPoints > 0) {
+    test2State.aiAnimation = 'attack';
+    render('test2');
+    await wait(520);
     test2Attack('demons');
+    render('test2');
+    await wait(420);
   } else {
     test2AddLog('Демоны не достают до рыцарей и заканчивают ход.');
   }
 }
 
-function advanceTest2Turn(): void {
-  if (test2State.result) {
+async function advanceTest2Turn(): Promise<void> {
+  if (test2State.result || test2State.aiBusy) {
     return;
   }
 
@@ -775,8 +774,12 @@ function advanceTest2Turn(): void {
     resetTest2Turn(stack);
 
     if (faction === 'demons') {
+      test2State.aiBusy = true;
+      test2State.aiAnimation = 'move';
       render('test2');
-      performTest2AiTurn();
+      await performTest2AiTurn();
+      test2State.aiBusy = false;
+      test2State.aiAnimation = null;
       if (test2State.result) {
         render('test2');
         return;
@@ -1354,6 +1357,13 @@ app.addEventListener('click', (event: MouseEvent) => {
     return;
   }
 
+  const hexCell = clickedElement.closest('[data-hex-x][data-hex-y]') as HTMLElement | null;
+  if (activeScreen === 'test2' && hexCell && app.contains(hexCell)) {
+    audioManager.playButtonSound();
+    handleTest2Cell(Number(hexCell.dataset.hexX), Number(hexCell.dataset.hexY));
+    return;
+  }
+
   const button = clickedElement.closest<HTMLButtonElement>('button');
 
   if (!button || !app.contains(button)) {
@@ -1361,13 +1371,6 @@ app.addEventListener('click', (event: MouseEvent) => {
   }
 
   audioManager.playButtonSound();
-
-  const test2Unit = clickedElement.closest<HTMLElement>('[data-test2-unit]');
-  if (test2Unit && app.contains(test2Unit) && (test2Unit.dataset.test2Unit === 'knights' || test2Unit.dataset.test2Unit === 'demons')) {
-    test2State.selected = test2Unit.dataset.test2Unit;
-    render('test2');
-    return;
-  }
 
   const test2Action = button.dataset.test2Action;
   if (activeScreen === 'test2' && test2Action) {
