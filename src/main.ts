@@ -1467,9 +1467,9 @@ type Test3UiIcon = Test3Resource | 'workers' | 'army' | 'fleet';
 function test3UiIcon(type: Test3UiIcon): string {
   const icons: Record<Test3UiIcon, string> = {
     gold: '<circle cx="16" cy="16" r="10"/><path d="m16 9 4 7-4 7-4-7 4-7Z"/>',
-    wood: '<path class="test3-ui-wood-log" d="M8 11h16c3 0 5 2 5 5s-2 5-5 5H8c-3 0-5-2-5-5s2-5 5-5Z"/><ellipse class="test3-ui-wood-end" cx="8" cy="16" rx="5" ry="5"/><ellipse class="test3-ui-wood-ring" cx="8" cy="16" rx="2.5" ry="3"/><path d="M20 12v8"/>',
+    wood: '<path class="test3-ui-wood-log" d="M9 5h15c2 0 3 1 3 3s-1 3-3 3H9c-2 0-3-1-3-3s1-3 3-3Z"/><ellipse class="test3-ui-wood-end" cx="9" cy="8" rx="3" ry="3"/><ellipse class="test3-ui-wood-ring" cx="9" cy="8" rx="1.5" ry="1.5"/><path class="test3-ui-wood-log" d="M7 13h17c2 0 3 1 3 3s-1 3-3 3H7c-2 0-3-1-3-3s1-3 3-3Z"/><ellipse class="test3-ui-wood-end" cx="7" cy="16" rx="3" ry="3"/><ellipse class="test3-ui-wood-ring" cx="7" cy="16" rx="1.5" ry="1.5"/><path class="test3-ui-wood-log" d="M9 21h15c2 0 3 1 3 3s-1 3-3 3H9c-2 0-3-1-3-3s1-3 3-3Z"/><ellipse class="test3-ui-wood-end" cx="9" cy="24" rx="3" ry="3"/><ellipse class="test3-ui-wood-ring" cx="9" cy="24" rx="1.5" ry="1.5"/>',
     stone: '<path d="M4 23 7 14l7-5 7 2 7 8-3 8H9L4 23Z"/><path d="m7 14 7 5 7-4M14 19l-2 8M21 15l4 4"/>',
-    food: '<path class="test3-ui-food-loaf" d="M5 19c0-4 4-7 11-7s11 3 11 7v6H5v-6Z"/><path d="M9 18c1-2 2-2 3 0M15 16c1-2 2-2 3 0M21 18c1-2 2-2 3 0M5 25h22"/>',
+    food: '<path class="test3-ui-food-loaf" d="M4 22c0-4 3-7 8-8 1-4 4-7 8-7s7 3 8 7c2 1 3 4 3 7 0 4-3 6-7 6H11c-4 0-7-2-7-5Z"/><path d="M11 17l3 2M17 13l3 2M22 17l3 2"/>',
     workers: '<path d="M10 11c0-3 2-5 6-5s6 2 6 5M8 12h16M16 6V4M8 28c0-6 3-9 8-9s8 3 8 9M5 18l4 4M27 18l-4 4"/><circle cx="16" cy="12" r="4"/>',
     army: '<path d="M16 4 25 8v7c0 7-3 11-9 14-6-3-9-7-9-14V8l9-4Z"/><path d="m10 22 12-12M18 9l5 5M9 23l4-1"/>',
     fleet: '<path d="M4 22h24l-4 5H8l-4-5ZM9 22l3-12h7l4 12M16 10V4M16 5l8 5H16"/><path d="M3 28c3 2 5-2 8 0s5-2 8 0 5-2 10 0"/>',
@@ -1487,9 +1487,9 @@ function test3BuildingIcon(type: Test3BuildingType): string {
     goldMine: '<path class="test3-icon-mine-dark" d="M5 28V17a11 11 0 0 1 22 0v11Z"/><path class="test3-icon-timber" d="M7 28V17a9 9 0 0 1 18 0v11M7 18h18M10 28V18M22 28V18"/><path d="M3 28h26M5 24h22"/><path class="test3-icon-cart" d="M9 19h14l-2 6H11l-2-6Z"/><circle class="test3-icon-cart-wheel" cx="12" cy="26" r="2"/><circle class="test3-icon-cart-wheel" cx="20" cy="26" r="2"/><path class="test3-icon-gold" d="m12 19 3-3 3 3 3-2 2 2-2 3h-8l-2-3Z"/>',
     sawmill: '<path d="M4 27h24M6 27v-7h10v7"/><path class="test3-icon-wood" d="M4 20h12v7H4z"/><circle cx="22" cy="16" r="7"/><circle cx="22" cy="16" r="2"/><path d="M22 9v5M22 18v5M15 16h5M24 16h5M17 11l3 3M24 18l3 3M27 11l-3 3M20 18l-3 3"/>',
     quarry: '<path class="test3-icon-stone" d="M5 17 10 9l8 2 6-4 4 8-2 11H7L5 17Z"/><path d="M8 22l4-3 3 4 4-3 4 2M18 5h10M21 5l-7 15"/>',
-    house: '<path d="M22 13V5h4v8M21 5h6"/><path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M13 28v-8h6v8M8 17h3v3H8zM21 17h3v3h-3zM9.5 17v3M8 18.5h3M22.5 17v3M21 18.5h3M18 24h1"/>',
+    house: '<path d="M22 13V4h4v9M21 4h6"/><path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M13 28v-8h6v8M8 17h3v3H8zM21 17h3v3h-3zM9.5 17v3M8 18.5h3M22.5 17v3M21 18.5h3M18 24h1"/>',
     warehouse: '<path d="M3 12h26v16H3V12ZM3 12l5-6h16l5 6Z"/><path d="M6 16h13v12H6V16ZM6 20h13M12 16v12"/><path class="test3-icon-crate" d="M21 16h6v6h-6zM21 24h6v4h-6zM21 19h6M24 16v6M21 26h6M24 24v4"/>',
-    barracks: '<path d="M3 28V14h26v14H3Z"/><path d="M3 14V9h5v5h5V9h6v5h5V9h5v5"/><path d="M7 18h4v5H7zM21 18h4v5h-4z"/><path class="test3-icon-shield" d="M16 16 22 19v4c0 3-3 5-6 7-3-2-6-4-6-7v-4l6-3Z"/><path d="M16 4v8M16 4h6l-3 3h3"/>',
+    barracks: '<path d="M4 28V12h24v16H4Z"/><path d="M4 12V7h5v5h5V7h4v5h5V7h5v5"/><path d="M11 28v-8a5 5 0 0 1 10 0v8"/><path class="test3-icon-shield" d="M16 14 21 17v4c0 3-2 5-5 7-4-2-5-4-5-7v-4l5-3Z"/>',
     shipyard: '<path d="M3 28h26M5 25h22"/><path class="test3-icon-hull" d="M5 19h24l-5 8H10l-5-8Z"/><path class="test3-icon-timber" d="M9 19V8h2v11M10 9h17M13 19v6M18 19v6M23 19v6"/><path class="test3-icon-mast" d="M16 19V5M11 8h10M16 5l-5 3M16 5l5 3"/>',
     fishingYard: '<path class="test3-icon-fish" d="M4 18c5-7 12-7 18 0-6 7-13 7-18 0ZM21 18l7-5v10l-7-5Z"/><circle class="test3-icon-fish-eye" cx="10" cy="16" r="1"/>',
   };
