@@ -402,8 +402,20 @@ function renderTest2(): void {
               <small>×${stack.count}</small>
             </span>`
           : '';
+        const tooltipMarkup = stack
+          ? `<div class="hex-hover-info" role="tooltip">
+              <strong>${stack.label} ×${stack.count}</strong>
+              <span>HP отряда: ${Math.round(stack.health)}/${stack.maxHealth}</span>
+              <span>HP бойца: ${stack.unitHealth}</span>
+              <span>Урон: ${stack.damage} · Защита: ${stack.defense}</span>
+              <span>Инициатива: ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</span>
+            </div>`
+          : '';
 
-        return `<button class="${classes}" type="button" data-hex-x="${x}" data-hex-y="${y}" aria-label="Клетка ${x + 1}, ${y + 1}">${stackMarkup}</button>`;
+        return `<div class="hex-cell-wrap">
+          <button class="${classes}" type="button" data-hex-x="${x}" data-hex-y="${y}" aria-label="Клетка ${x + 1}, ${y + 1}">${stackMarkup}</button>
+          ${tooltipMarkup}
+        </div>`;
       }).join('')}
     </div>
   `).join('');
@@ -466,7 +478,7 @@ function renderTest2(): void {
               </div>
               <div class="test2-action test2-action-attack test2-action-hint">
                 <strong>Атаковать</strong>
-                <small>Нажмите на соседнюю клетку Демонов · 1 ОД</small>
+                <small>Нажмите на Демонов · ОД на подход + удар
               </div>
               <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
                 <strong>Исцелить отряд</strong>
@@ -580,6 +592,43 @@ function test2CanAttack(attackerId: Test2Faction): boolean {
   const target = test2State.stacks[targetId];
 
   return attacker.count > 0 && target.count > 0 && test2Distance(attacker.x, attacker.y, target.x, target.y) === 1;
+}
+
+function test2ApproachAndAttack(): boolean {
+  const knights = test2State.stacks.knights;
+  const demons = test2State.stacks.demons;
+
+  if (knights.count <= 0 || demons.count <= 0 || knights.hasAttacked || knights.actionPoints < 1) {
+    test2AddLog('Атака невозможна: не хватает очков действий.');
+    return false;
+  }
+
+  if (test2CanAttack('knights')) {
+    test2Attack('knights');
+    return true;
+  }
+
+  const attackDistance = test2Distance(knights.x, knights.y, demons.x, demons.y);
+  const attackCell = test2Neighbors(demons.x, demons.y)
+    .filter(([x, y]) => !test2StackAt(x, y))
+    .map(([x, y]) => ({ x, y, moveCost: test2Distance(knights.x, knights.y, x, y) }))
+    .sort((left, right) => left.moveCost - right.moveCost)
+    .find((candidate) => candidate.moveCost + 1 <= knights.actionPoints);
+
+  if (!attackCell || attackDistance > knights.actionPoints) {
+    test2AddLog(`Недостаточно ОД для атаки: нужно ${attackDistance}, осталось ${knights.actionPoints}.`);
+    return false;
+  }
+
+  if (attackCell.moveCost > 0) {
+    knights.x = attackCell.x;
+    knights.y = attackCell.y;
+    knights.actionPoints -= attackCell.moveCost;
+    test2AddLog(`Рыцари подошли к Демонам за ${attackCell.moveCost} ОД.`);
+  }
+
+  test2Attack('knights');
+  return true;
 }
 
 function test2AddLog(text: string): void {
@@ -769,15 +818,13 @@ function handleTest2Cell(x: number, y: number): void {
   }
 
   if (occupant?.id === 'demons') {
-    if (test2CanAttack('knights') && knights.actionPoints > 0 && !knights.hasAttacked) {
-      test2Attack('knights');
+    if (test2ApproachAndAttack()) {
       if (!test2State.result) {
         advanceTest2Turn();
       } else {
         render('test2');
       }
     } else {
-      test2AddLog('Атаковать можно только соседний отряд и один раз за ход.');
       render('test2');
     }
     return;
