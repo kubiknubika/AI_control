@@ -6,8 +6,9 @@ import {
   type ButtonSound,
 } from './audio';
 
-type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'settings';
+type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'test2' | 'settings';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
+type Test2Faction = 'knights' | 'demons';
 type BattleMenu = 'skill' | 'magic' | null;
 type BattleResult = 'win' | 'lose' | null;
 type BattleAnimation =
@@ -32,6 +33,19 @@ const MAX_HEALTH = 10;
 const BASE_ENEMY_HEALTH = 10;
 const BASE_ENEMY_DAMAGE = { min: 2, max: 4 };
 const LOG_LIMIT = 8;
+const TEST2_WIDTH = 12;
+const TEST2_HEIGHT = 6;
+const TEST2_SCHEDULE: Test2Faction[] = [
+  'knights',
+  'demons',
+  'knights',
+  'demons',
+  'knights',
+  'demons',
+  'knights',
+  'demons',
+  'knights',
+];
 const HIT_CHANCE = 0.95;
 
 const DEFAULT_SETTINGS: Settings = {
@@ -82,6 +96,35 @@ interface BattleState {
   log: BattleLogEntry[];
 }
 
+interface Test2Stack {
+  id: Test2Faction;
+  label: string;
+  shortLabel: string;
+  count: number;
+  maxCount: number;
+  unitHealth: number;
+  maxHealth: number;
+  health: number;
+  damage: number;
+  defense: number;
+  initiative: number;
+  maxActionPoints: number;
+  actionPoints: number;
+  x: number;
+  y: number;
+  hasAttacked: boolean;
+  abilityUsed: boolean;
+}
+
+interface Test2State {
+  stacks: Record<Test2Faction, Test2Stack>;
+  scheduleIndex: number;
+  cycle: number;
+  selected: Test2Faction | null;
+  result: 'win' | 'lose' | null;
+  log: string[];
+}
+
 const appElement = document.querySelector<HTMLDivElement>('#app');
 
 if (!appElement) {
@@ -94,6 +137,7 @@ const audioManager = new AudioManager(settings);
 let activeScreen: Screen = 'menu';
 let selectedDifficulty: Difficulty | null = null;
 let battleState = createBattleState();
+let test2State = createTest2State();
 
 function getSelectedDifficulty(): Difficulty {
   return selectedDifficulty ?? 'normal';
@@ -128,6 +172,59 @@ function createBattleState(): BattleState {
       { type: 'system', text: `Скелет: ${enemy.maxHealth} HP, урон ${enemy.damageMin}–${enemy.damageMax}.` },
       { type: 'system', text: 'Бой начался. Ваш ход.' },
       { type: 'system', text: 'Скелет 1 Ур. поднимает оружие.' },
+    ],
+  };
+}
+
+function createTest2State(): Test2State {
+  const knights: Test2Stack = {
+    id: 'knights',
+    label: 'Рыцари',
+    shortLabel: 'Рыцари',
+    count: 10,
+    maxCount: 10,
+    unitHealth: 40,
+    maxHealth: 10 * 40,
+    health: 10 * 40,
+    damage: 10,
+    defense: 3,
+    initiative: 5,
+    maxActionPoints: 4,
+    actionPoints: 4,
+    x: 1,
+    y: 2,
+    hasAttacked: false,
+    abilityUsed: false,
+  };
+  const demons: Test2Stack = {
+    id: 'demons',
+    label: 'Демоны',
+    shortLabel: 'Демоны',
+    count: 4,
+    maxCount: 4,
+    unitHealth: 65,
+    maxHealth: 4 * 65,
+    health: 4 * 65,
+    damage: 15,
+    defense: 6,
+    initiative: 4,
+    maxActionPoints: 4,
+    actionPoints: 0,
+    x: 10,
+    y: 3,
+    hasAttacked: false,
+    abilityUsed: false,
+  };
+
+  return {
+    stacks: { knights, demons },
+    scheduleIndex: 0,
+    cycle: 1,
+    selected: 'knights',
+    result: null,
+    log: [
+      'Инициатива: Рыцари 5, Демоны 4.',
+      'Рыцари ходят первыми. Выберите клетку или действие.',
     ],
   };
 }
@@ -206,6 +303,11 @@ function render(screen: Screen): void {
     return;
   }
 
+  if (screen === 'test2') {
+    renderTest2();
+    return;
+  }
+
   renderPlayPlaceholder();
 }
 
@@ -235,6 +337,10 @@ function renderTests(): void {
             <strong>Тест 1 · Бой 1 на 1</strong>
             <small>Схватка со скелетом в коридоре замка</small>
           </button>
+          <button class="test-option test-option-tactical" type="button" data-screen="test2">
+            <strong>Тест 2 · Гексовое поле 12×6</strong>
+            <small>Рыцари против демонов · порядок инициативы и очки действий</small>
+          </button>
         </div>
         <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
           В главное меню
@@ -242,6 +348,398 @@ function renderTests(): void {
       </section>
     </main>
   `;
+}
+
+function renderTest2(): void {
+  const currentFaction = TEST2_SCHEDULE[test2State.scheduleIndex];
+  const currentStack = test2State.stacks[currentFaction];
+  const selectedStack = test2State.selected ? test2State.stacks[test2State.selected] : null;
+  const reachableCells = new Set<string>();
+
+  if (currentFaction === 'knights' && selectedStack?.id === 'knights' && selectedStack.count > 0) {
+    for (let y = 0; y < TEST2_HEIGHT; y += 1) {
+      for (let x = 0; x < TEST2_WIDTH; x += 1) {
+        const occupant = test2StackAt(x, y);
+        if (!occupant && test2Distance(selectedStack.x, selectedStack.y, x, y) <= selectedStack.actionPoints) {
+          reachableCells.add(test2HexKey(x, y));
+        }
+      }
+    }
+  }
+
+  const boardRows = Array.from({ length: TEST2_HEIGHT }, (_, y) => `
+    <div class="hex-row" role="row">
+      ${Array.from({ length: TEST2_WIDTH }, (_, x) => {
+        const stack = test2StackAt(x, y);
+        const cellKey = test2HexKey(x, y);
+        const classes = [
+          'hex-cell',
+          reachableCells.has(cellKey) ? 'is-reachable' : '',
+          stack && stack.id === 'knights' ? 'is-knights' : '',
+          stack && stack.id === 'demons' ? 'is-demons' : '',
+          stack && test2State.selected === stack.id ? 'is-selected' : '',
+        ].filter(Boolean).join(' ');
+        const stackMarkup = stack
+          ? `<span class="hex-unit" data-test2-unit="${stack.id}">
+              <strong>${stack.shortLabel}</strong>
+              <small>×${stack.count}</small>
+            </span>`
+          : '';
+
+        return `<button class="${classes}" type="button" data-hex-x="${x}" data-hex-y="${y}" aria-label="Клетка ${x + 1}, ${y + 1}">${stackMarkup}</button>`;
+      }).join('')}
+    </div>
+  `).join('');
+
+  const orderMarkup = TEST2_SCHEDULE.map((faction, index) => {
+    const ordinal = TEST2_SCHEDULE.slice(0, index + 1).filter((item) => item === faction).length;
+    const current = index === test2State.scheduleIndex ? ' is-current' : '';
+    return `<span class="test2-order-item ${faction}${current}">${faction === 'knights' ? 'Рыцари' : 'Демоны'} ${ordinal}</span>`;
+  }).join('');
+  const actionDisabled = currentFaction !== 'knights' || test2State.result !== null ? ' disabled' : '';
+  const attackDisabled = actionDisabled || currentStack.hasAttacked || currentStack.actionPoints < 1 || !test2CanAttack('knights') ? ' disabled' : '';
+  const healDisabled = actionDisabled || currentStack.abilityUsed || currentStack.actionPoints < 1 ? ' disabled' : '';
+  const resultMarkup = test2State.result
+    ? `<div class="test2-result ${test2State.result}">${test2State.result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.'}</div>`
+    : '';
+  const logMarkup = test2State.log.slice(-7).map((entry) => `<li>${entry}</li>`).join('');
+
+  app.innerHTML = `
+    <main class="test2-screen" aria-labelledby="test2-title">
+      <section class="test2-card">
+        <header class="test2-header">
+          <div>
+            <p class="eyebrow">Тест 2 · Тактический бой</p>
+            <h1 id="test2-title">Рыцари против демонов</h1>
+          </div>
+          <div class="test2-turn-badge">
+            <span>Цикл ${test2State.cycle}</span>
+            <strong>${currentStack.label}</strong>
+            <small>Инициатива ${currentStack.initiative}</small>
+          </div>
+        </header>
+
+        <section class="test2-order-panel" aria-label="Порядок действий">
+          <div class="test2-panel-heading">
+            <strong>Порядок действий</strong>
+            <span>Рыцари получают 5 ходов, демоны — 4</span>
+          </div>
+          <div class="test2-order-list">${orderMarkup}</div>
+        </section>
+
+        <div class="test2-layout">
+          <section class="hex-board-panel" aria-label="Гексовое поле 12 на 6">
+            <div class="hex-board-meta">
+              <strong>Поле 12×6</strong>
+              <span>Синие — ваши · красные — ИИ</span>
+            </div>
+            <div class="hex-board" role="grid">
+              ${boardRows}
+            </div>
+            <p class="hex-help">Выберите Рыцарей и нажмите на подсвеченную клетку. Перемещение стоит 1 очко действия за клетку.</p>
+          </section>
+
+          <aside class="test2-sidebar">
+            ${renderTest2StackCard(test2State.stacks.knights, 'player')}
+            ${renderTest2StackCard(test2State.stacks.demons, 'ai')}
+
+            <section class="test2-actions-panel">
+              <div class="test2-ap-line">
+                <span>Очки действий</span>
+                <strong>${currentStack.actionPoints}/${currentStack.maxActionPoints}</strong>
+              </div>
+              <button class="test2-action test2-action-attack" type="button" data-test2-action="attack"${attackDisabled}>
+                <strong>Атаковать</strong>
+                <small>Соседняя клетка · 1 ОД</small>
+              </button>
+              <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
+                <strong>Исцелить отряд</strong>
+                <small>10 HP × число рыцарей · 1 ОД</small>
+              </button>
+              <button class="test2-action test2-action-end" type="button" data-test2-action="end"${actionDisabled}>
+                <strong>Закончить ход</strong>
+                <small>Передать инициативу</small>
+              </button>
+            </section>
+
+            <section class="test2-log-panel" aria-labelledby="test2-log-title">
+              <h2 id="test2-log-title">Журнал</h2>
+              <ol>${logMarkup}</ol>
+            </section>
+          </aside>
+        </div>
+
+        ${resultMarkup}
+
+        <button class="menu-button menu-button-secondary test2-back-button" type="button" data-screen="tests">
+          К списку тестов
+        </button>
+      </section>
+    </main>
+  `;
+}
+
+function renderTest2StackCard(stack: Test2Stack, side: 'player' | 'ai'): string {
+  const current = TEST2_SCHEDULE[test2State.scheduleIndex] === stack.id ? ' is-active' : '';
+  const healthPercentValue = Math.max(0, Math.min(100, (stack.health / stack.maxHealth) * 100));
+
+  return `
+    <section class="test2-army-card ${side}${current}">
+      <div class="test2-army-heading">
+        <strong>${stack.label}</strong>
+        <span>×${stack.count}</span>
+      </div>
+      <div class="test2-army-health">
+        <span style="width: ${healthPercentValue}%"></span>
+      </div>
+      <div class="test2-army-health-label">Отряд: ${Math.max(0, Math.round(stack.health))}/${stack.maxHealth} HP</div>
+      <div class="test2-stat-grid">
+        <span>HP бойца <b>${stack.unitHealth}</b></span>
+        <span>Урон <b>${stack.damage}</b></span>
+        <span>Защита <b>${stack.defense}</b></span>
+        <span>Инициатива <b>${stack.initiative}</b></span>
+        <span>ОД <b>${stack.maxActionPoints}</b></span>
+      </div>
+    </section>
+  `;
+}
+
+function test2HexKey(x: number, y: number): string {
+  return `${x}:${y}`;
+}
+
+function test2StackAt(x: number, y: number): Test2Stack | null {
+  const stack = Object.values(test2State.stacks).find((candidate) => candidate.count > 0 && candidate.x === x && candidate.y === y);
+  return stack ?? null;
+}
+
+function test2Neighbors(x: number, y: number): Array<[number, number]> {
+  const directions = y % 2 === 0
+    ? [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]]
+    : [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
+
+  return directions
+    .map(([dx, dy]) => [x + dx, y + dy] as [number, number])
+    .filter(([nextX, nextY]) => nextX >= 0 && nextX < TEST2_WIDTH && nextY >= 0 && nextY < TEST2_HEIGHT);
+}
+
+function test2Distance(startX: number, startY: number, targetX: number, targetY: number): number {
+  if (startX === targetX && startY === targetY) {
+    return 0;
+  }
+
+  const queue: Array<[number, number, number]> = [[startX, startY, 0]];
+  const visited = new Set<string>([test2HexKey(startX, startY)]);
+
+  while (queue.length > 0) {
+    const [x, y, distance] = queue.shift() as [number, number, number];
+
+    for (const [nextX, nextY] of test2Neighbors(x, y)) {
+      const key = test2HexKey(nextX, nextY);
+      if (visited.has(key)) {
+        continue;
+      }
+      if (nextX === targetX && nextY === targetY) {
+        return distance + 1;
+      }
+      visited.add(key);
+      queue.push([nextX, nextY, distance + 1]);
+    }
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function test2LivingCount(stack: Test2Stack): number {
+  return stack.health > 0 ? Math.ceil(stack.health / stack.unitHealth) : 0;
+}
+
+function syncTest2Count(stack: Test2Stack): void {
+  stack.count = test2LivingCount(stack);
+}
+
+function test2CanAttack(attackerId: Test2Faction): boolean {
+  const attacker = test2State.stacks[attackerId];
+  const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
+  const target = test2State.stacks[targetId];
+
+  return attacker.count > 0 && target.count > 0 && test2Distance(attacker.x, attacker.y, target.x, target.y) === 1;
+}
+
+function test2AddLog(text: string): void {
+  test2State.log.push(text);
+  test2State.log = test2State.log.slice(-8);
+}
+
+function resetTest2Turn(stack: Test2Stack): void {
+  stack.actionPoints = stack.maxActionPoints;
+  stack.hasAttacked = false;
+  stack.abilityUsed = false;
+}
+
+function test2Attack(attackerId: Test2Faction): void {
+  const attacker = test2State.stacks[attackerId];
+  const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
+  const target = test2State.stacks[targetId];
+
+  if (attacker.actionPoints < 1 || attacker.hasAttacked || !test2CanAttack(attackerId)) {
+    test2AddLog('Атака невозможна: цель должна быть на соседней клетке.');
+    return;
+  }
+
+  const damagePerUnit = Math.max(1, attacker.damage - target.defense);
+  const damage = damagePerUnit * attacker.count;
+  target.health = Math.max(0, target.health - damage);
+  syncTest2Count(target);
+  attacker.actionPoints -= 1;
+  attacker.hasAttacked = true;
+  audioManager.playBattleSound('hit');
+  test2AddLog(`${attacker.label} атакуют: ${damage} урона. ${target.label} осталось: ${target.count}.`);
+
+  if (target.count <= 0) {
+    test2State.result = attackerId === 'knights' ? 'win' : 'lose';
+    audioManager.playBattleSound(attackerId === 'knights' ? 'victory' : 'defeat');
+    test2AddLog(attackerId === 'knights' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.');
+  }
+}
+
+function test2Heal(): void {
+  const knights = test2State.stacks.knights;
+  if (knights.abilityUsed || knights.actionPoints < 1 || knights.count <= 0) {
+    return;
+  }
+
+  const amount = 10 * knights.count;
+  const healed = Math.min(amount, knights.maxHealth - knights.health);
+  knights.health += healed;
+  knights.actionPoints -= 1;
+  knights.abilityUsed = true;
+  audioManager.playBattleSound('magic');
+  test2AddLog(`Исцеление отряда: +${healed} HP (${knights.count} рыцарей × 10).`);
+}
+
+function performTest2AiTurn(): void {
+  const demons = test2State.stacks.demons;
+  const knights = test2State.stacks.knights;
+
+  if (demons.count <= 0 || knights.count <= 0) {
+    return;
+  }
+
+  let moved = 0;
+  while (demons.actionPoints > 0 && test2Distance(demons.x, demons.y, knights.x, knights.y) > 1) {
+    const nextCell = test2Neighbors(demons.x, demons.y)
+      .filter(([x, y]) => !test2StackAt(x, y))
+      .sort((left, right) => test2Distance(left[0], left[1], knights.x, knights.y) - test2Distance(right[0], right[1], knights.x, knights.y))[0];
+
+    if (!nextCell) {
+      break;
+    }
+
+    demons.x = nextCell[0];
+    demons.y = nextCell[1];
+    demons.actionPoints -= 1;
+    moved += 1;
+  }
+
+  if (moved > 0) {
+    test2AddLog(`Демоны приближаются к рыцарям на ${moved} клеток.`);
+  }
+
+  if (test2CanAttack('demons') && demons.actionPoints > 0) {
+    test2Attack('demons');
+  } else {
+    test2AddLog('Демоны не достают до рыцарей и заканчивают ход.');
+  }
+}
+
+function advanceTest2Turn(): void {
+  if (test2State.result) {
+    return;
+  }
+
+  test2State.stacks.knights.actionPoints = 0;
+  let attempts = 0;
+
+  while (attempts < TEST2_SCHEDULE.length) {
+    test2State.scheduleIndex = (test2State.scheduleIndex + 1) % TEST2_SCHEDULE.length;
+    if (test2State.scheduleIndex === 0) {
+      test2State.cycle += 1;
+    }
+
+    const faction = TEST2_SCHEDULE[test2State.scheduleIndex];
+    const stack = test2State.stacks[faction];
+    attempts += 1;
+
+    if (stack.count <= 0) {
+      continue;
+    }
+
+    resetTest2Turn(stack);
+
+    if (faction === 'demons') {
+      render('test2');
+      performTest2AiTurn();
+      if (test2State.result) {
+        render('test2');
+        return;
+      }
+      continue;
+    }
+
+    test2State.selected = 'knights';
+    render('test2');
+    return;
+  }
+}
+
+function handleTest2Action(action: string): void {
+  if (test2State.result || TEST2_SCHEDULE[test2State.scheduleIndex] !== 'knights') {
+    return;
+  }
+
+  if (action === 'attack') {
+    test2Attack('knights');
+  } else if (action === 'heal') {
+    test2Heal();
+  } else if (action === 'end') {
+    advanceTest2Turn();
+    return;
+  }
+
+  render('test2');
+}
+
+function handleTest2Cell(x: number, y: number): void {
+  if (test2State.result || TEST2_SCHEDULE[test2State.scheduleIndex] !== 'knights') {
+    return;
+  }
+
+  const knights = test2State.stacks.knights;
+  const occupant = test2StackAt(x, y);
+
+  if (occupant?.id === 'knights') {
+    test2State.selected = 'knights';
+    render('test2');
+    return;
+  }
+
+  if (occupant || test2State.selected !== 'knights') {
+    return;
+  }
+
+  const distance = test2Distance(knights.x, knights.y, x, y);
+  if (distance === 0 || distance > knights.actionPoints) {
+    test2AddLog('Эта клетка находится дальше доступного перемещения.');
+    render('test2');
+    return;
+  }
+
+  knights.x = x;
+  knights.y = y;
+  knights.actionPoints -= distance;
+  test2AddLog(`Рыцари переместились на ${distance} клетк${distance === 1 ? 'у' : 'и'}. Осталось ОД: ${knights.actionPoints}.`);
+  render('test2');
 }
 
 function renderDifficulty(): void {
@@ -726,7 +1224,7 @@ function updateVolumeSetting(target: HTMLInputElement): void {
 
   applySettings();
 
-  if (settings.musicVolume > 0 && activeScreen !== 'testBattle') {
+  if (settings.musicVolume > 0 && activeScreen !== 'testBattle' && activeScreen !== 'test2') {
     audioManager.startMusic();
   }
 
@@ -758,6 +1256,24 @@ app.addEventListener('click', (event: MouseEvent) => {
 
   audioManager.playButtonSound();
 
+  const test2Unit = clickedElement.closest<HTMLElement>('[data-test2-unit]');
+  if (test2Unit && app.contains(test2Unit) && (test2Unit.dataset.test2Unit === 'knights' || test2Unit.dataset.test2Unit === 'demons')) {
+    test2State.selected = test2Unit.dataset.test2Unit;
+    render('test2');
+    return;
+  }
+
+  const test2Action = button.dataset.test2Action;
+  if (activeScreen === 'test2' && test2Action) {
+    handleTest2Action(test2Action);
+    return;
+  }
+
+  if (activeScreen === 'test2' && button.dataset.hexX && button.dataset.hexY) {
+    handleTest2Cell(Number(button.dataset.hexX), Number(button.dataset.hexY));
+    return;
+  }
+
   if (isDifficulty(button.dataset.difficulty)) {
     selectedDifficulty = button.dataset.difficulty;
     battleState = createBattleState();
@@ -776,6 +1292,13 @@ app.addEventListener('click', (event: MouseEvent) => {
   const nextScreen = button.dataset.screen as Screen | undefined;
 
   if (nextScreen) {
+    if (nextScreen === 'test2') {
+      test2State = createTest2State();
+      audioManager.startBattleMusic();
+      render('test2');
+      return;
+    }
+
     if (nextScreen !== 'testBattle') {
       audioManager.startMusic();
     }
@@ -806,12 +1329,12 @@ app.addEventListener('change', (event: Event) => {
 });
 
 window.addEventListener('pointerdown', () => {
-  if (activeScreen !== 'testBattle') {
+  if (activeScreen !== 'testBattle' && activeScreen !== 'test2') {
     audioManager.startMusic();
   }
 }, { passive: true });
 window.addEventListener('keydown', () => {
-  if (activeScreen !== 'testBattle') {
+  if (activeScreen !== 'testBattle' && activeScreen !== 'test2') {
     audioManager.startMusic();
   }
 });
