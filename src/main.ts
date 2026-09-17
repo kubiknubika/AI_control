@@ -357,7 +357,7 @@ function renderBattle(): void {
           <span class="battle-turn-label">${turnLabel}</span>
         </header>
 
-        <section class="battle-scene${animationClass}" aria-label="Коридор замка и противники">
+        <div class="battle-status-strip">
           <div class="battle-enemy-status">
             <div class="battle-health-heading">
               <strong>Скелет 1 Ур.</strong>
@@ -367,6 +367,9 @@ function renderBattle(): void {
               <span class="battle-health-fill" style="width: ${skeletonHealthPercent}%"></span>
             </div>
           </div>
+        </div>
+
+        <section class="battle-scene${animationClass}" aria-label="Коридор замка и противники">
           <img class="player-sprite" src="/assets/player-adventurer.png" alt="Ваш герой" />
           <img class="skeleton-sprite" src="/assets/skeleton-warrior.png" alt="Скелет в доспехах" />
         </section>
@@ -521,6 +524,7 @@ function finishBattle(result: Exclude<BattleResult, null>): void {
 
   battleState.result = result;
   battleState.openMenu = null;
+  audioManager.playBattleSound(result === 'win' ? 'victory' : 'defeat');
   addBattleLog(result === 'win' ? 'victory' : 'defeat', result === 'win' ? 'Победа! Скелет повержен.' : 'Поражение. Вы потеряли сознание.');
 }
 

@@ -30,6 +30,8 @@ flowchart TD
     battleMagic[public/audio/battle-magic.wav]
     battleItem[public/audio/battle-item.wav]
     battleMiss[public/audio/battle-miss.wav]
+    battleVictory[public/audio/battle-victory.wav]
+    battleDefeat[public/audio/battle-defeat.wav]
     background[public/assets/menu-fantasy-background.png]
     battleBackground[public/assets/battle-castle-corridor.png]
     skeleton[public/assets/skeleton-warrior.png]
@@ -66,6 +68,8 @@ flowchart TD
     audio --> battleMagic
     audio --> battleItem
     audio --> battleMiss
+    audio --> battleVictory
+    audio --> battleDefeat
     styles --> background
     styles --> battleBackground
     entry --> skeleton

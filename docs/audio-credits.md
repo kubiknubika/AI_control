@@ -24,4 +24,6 @@
 - `battle-double.wav` — двойной удар;
 - `battle-magic.wav` — лечение;
 - `battle-item.wav` — лечебная трава;
-- `battle-miss.wav` — промах.
+- `battle-miss.wav` — промах;
+- `battle-victory.wav` — победа;
+- `battle-defeat.wav` — поражение.

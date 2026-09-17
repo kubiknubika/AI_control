@@ -446,13 +446,15 @@ h1 {
   pointer-events: none;
 }
 
+.battle-status-strip {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .battle-enemy-status {
-  position: absolute;
-  top: 18px;
-  right: 22px;
-  z-index: 3;
   width: min(280px, 42%);
-  padding: 12px 14px;
+  padding: 10px 14px;
   border: 1px solid rgb(248 113 113 / 62%);
   border-radius: 10px;
   background: rgb(35 10 18 / 84%);
@@ -1083,10 +1085,12 @@ h1 {
     height: 66%;
   }
 
+  .battle-status-strip {
+    justify-content: stretch;
+  }
+
   .battle-enemy-status {
-    top: 12px;
-    right: 12px;
-    width: min(240px, 70%);
+    width: 100%;
   }
 
   .skeleton-sprite {

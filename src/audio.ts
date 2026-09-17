@@ -1,5 +1,5 @@
 export type ButtonSound = 'soft' | 'arcane' | 'stone' | 'metal' | 'rune';
-export type BattleSound = 'hit' | 'double' | 'magic' | 'item' | 'miss';
+export type BattleSound = 'hit' | 'double' | 'magic' | 'item' | 'miss' | 'victory' | 'defeat';
 
 export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
   soft: 'Мягкий',
@@ -34,6 +34,8 @@ const BATTLE_SOUND_FILES: Record<BattleSound, string> = {
   magic: '/audio/battle-magic.wav',
   item: '/audio/battle-item.wav',
   miss: '/audio/battle-miss.wav',
+  victory: '/audio/battle-victory.wav',
+  defeat: '/audio/battle-defeat.wav',
 };
 
 const MAX_MIX_VOLUME = 0.62;
@@ -67,6 +69,8 @@ export class AudioManager {
       magic: createAudio(BATTLE_SOUND_FILES.magic),
       item: createAudio(BATTLE_SOUND_FILES.item),
       miss: createAudio(BATTLE_SOUND_FILES.miss),
+      victory: createAudio(BATTLE_SOUND_FILES.victory),
+      defeat: createAudio(BATTLE_SOUND_FILES.defeat),
     };
     this.applyVolumes();
   }
