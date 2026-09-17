@@ -2059,20 +2059,39 @@ h1 {
 
 .test3-ui-wood-log,
 .test3-ui-icon .test3-ui-wood-log {
-  fill: #92400e;
-  stroke: #f0c27b;
+  fill: #8f451f;
+  stroke: #3b1b0b;
+  stroke-width: 1.2;
 }
 
 .test3-ui-wood-end,
 .test3-ui-icon .test3-ui-wood-end {
-  fill: #d6a66a;
-  stroke: #78350f;
+  fill: #d3914f;
+  stroke: #3b1b0b;
+  stroke-width: 1.2;
 }
 
 .test3-ui-wood-ring,
 .test3-ui-icon .test3-ui-wood-ring {
   fill: none;
   stroke: #78350f;
+  stroke-width: 1;
+}
+
+.test3-ui-wood-band,
+.test3-ui-icon .test3-ui-wood-band {
+  fill: none;
+  stroke: #5b2a12;
+  stroke-width: 1.1;
+  opacity: 0.9;
+}
+
+.test3-ui-wood-highlight,
+.test3-ui-icon .test3-ui-wood-highlight {
+  fill: none;
+  stroke: #e0a15c;
+  stroke-width: 1.1;
+  stroke-linecap: round;
 }
 
 .test3-build-cost .test3-ui-icon,
