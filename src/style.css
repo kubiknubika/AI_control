@@ -1843,6 +1843,24 @@ h1 {
   fill: rgb(148 163 184 / 42%);
 }
 
+.test3-ui-wood-log,
+.test3-ui-icon .test3-ui-wood-log {
+  fill: #92400e;
+  stroke: #f0c27b;
+}
+
+.test3-ui-wood-end,
+.test3-ui-icon .test3-ui-wood-end {
+  fill: #d6a66a;
+  stroke: #78350f;
+}
+
+.test3-ui-wood-ring,
+.test3-ui-icon .test3-ui-wood-ring {
+  fill: none;
+  stroke: #78350f;
+}
+
 .test3-build-cost .test3-ui-icon,
 .test3-selection-action .test3-ui-icon {
   display: inline-block;
@@ -2456,22 +2474,46 @@ h1 {
   stroke: #cbd5e1;
 }
 
+.test3-icon-mine-dark,
+.test3-icon-svg .test3-icon-mine-dark {
+  fill: #1e293b;
+  stroke: #0f172a;
+}
+
+.test3-icon-timber,
+.test3-icon-svg .test3-icon-timber {
+  fill: none;
+  stroke: #c08457;
+}
+
+.test3-icon-cart,
+.test3-icon-svg .test3-icon-cart {
+  fill: #78350f;
+  stroke: #fbbf24;
+}
+
+.test3-icon-cart-wheel,
+.test3-icon-svg .test3-icon-cart-wheel {
+  fill: #0f172a;
+  stroke: #fbbf24;
+}
+
 .test3-icon-hull,
 .test3-icon-svg .test3-icon-hull {
-  fill: #38bdf8;
-  stroke: #bae6fd;
+  fill: #92400e;
+  stroke: #fbbf24;
+}
+
+.test3-icon-shield,
+.test3-icon-svg .test3-icon-shield {
+  fill: #991b1b;
+  stroke: #fecaca;
 }
 
 .test3-icon-crate,
 .test3-icon-svg .test3-icon-crate {
   fill: #a16207;
   stroke: #fbbf24;
-}
-
-.test3-icon-crane,
-.test3-icon-svg .test3-icon-crane {
-  fill: none;
-  stroke: #facc15;
 }
 
 .test3-icon-fish,

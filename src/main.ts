@@ -73,6 +73,7 @@ const TEST3_TOWN_HALL_WOOD = 4;
 const TEST3_TOWN_HALL_STONE = 1;
 const TEST3_FISHING_BOAT_FOOD = 8;
 const TEST3_FOOD_PER_PERSON = 1;
+const TEST3_FOOD_SHORTAGE_PRODUCTION_MULTIPLIER = 0.5;
 const TEST3_SHIP_GOLD = 160;
 const TEST3_SHIP_WOOD = 260;
 const TEST3_SHIP_STONE = 100;
@@ -787,7 +788,9 @@ function test3UpgradeAvailability(building: Test3Building): { available: boolean
 
 function test3ProductionAmount(building: Test3Building): number {
   const definition = TEST3_BUILDING_DEFINITIONS[building.type];
-  return Math.round((definition.productionAmount ?? 0) * (1 + (building.level - 1) * 0.5));
+  const levelAmount = (definition.productionAmount ?? 0) * (1 + (building.level - 1) * 0.5);
+  const foodMultiplier = test3State.resources.food <= 0 ? TEST3_FOOD_SHORTAGE_PRODUCTION_MULTIPLIER : 1;
+  return Math.round(levelAmount * foodMultiplier);
 }
 
 function test3AddResource(resource: Test3Resource, amount: number): number {
@@ -808,35 +811,8 @@ function test3ConsumeFood(amount: number): void {
   if (amount <= 0) {
     return;
   }
-  test3State.resources.food -= amount;
+  test3State.resources.food = Math.max(0, test3State.resources.food - amount);
   test3State.resourceLimitNotified.food = false;
-}
-
-function test3RemoveWorkerForHunger(): boolean {
-  if (test3State.workers.length <= 1) {
-    return false;
-  }
-  const worker = test3State.workers.find((candidate) => candidate.status === 'idle')
-    ?? test3State.workers.find((candidate) => candidate.status === 'working')
-    ?? test3State.workers[0];
-  if (!worker) {
-    return false;
-  }
-  if (worker.buildingId) {
-    const building = test3State.buildings.find((candidate) => candidate.id === worker.buildingId);
-    if (building) {
-      if (building.workerId === worker.id) {
-        building.workerId = null;
-      }
-      if (building.upgradeWorkerId === worker.id) {
-        building.upgradeWorkerId = null;
-      }
-    }
-  }
-  test3State.workers = test3State.workers.filter((candidate) => candidate.id !== worker.id);
-  test3AddLog(`${worker.label} погиб от голода. Осталось рабочих: ${test3State.workers.length}.`);
-  audioManager.playSettlementSound('death');
-  return true;
 }
 
 function test3SpendResources(costs: { gold: number; wood: number; stone: number }): void {
@@ -1248,10 +1224,6 @@ function test3Tick(): void {
     addIncome('food', test3State.fleet.fishingBoats * TEST3_FISHING_BOAT_FOOD / 2);
   }
 
-  if (test3State.resources.food < 0 && test3State.elapsed % 5 === 0) {
-    test3RemoveWorkerForHunger();
-  }
-
   if (test3State.elapsed % 4 === 0 && Object.values(income).some((amount) => amount > 0)) {
     const incomeParts = (Object.keys(income) as Test3Resource[])
       .filter((resource) => income[resource] > 0)
@@ -1495,7 +1467,7 @@ type Test3UiIcon = Test3Resource | 'workers' | 'army' | 'fleet';
 function test3UiIcon(type: Test3UiIcon): string {
   const icons: Record<Test3UiIcon, string> = {
     gold: '<circle cx="16" cy="16" r="10"/><path d="m16 9 4 7-4 7-4-7 4-7Z"/>',
-    wood: '<path d="M8 8h16c3 0 5 3 5 8s-2 8-5 8H8c-3 0-5-3-5-8s2-8 5-8Z"/><ellipse cx="8" cy="16" rx="5" ry="8"/><ellipse cx="8" cy="16" rx="2.5" ry="4.5"/><path d="M20 9v14"/>',
+    wood: '<path class="test3-ui-wood-log" d="M8 8h16c3 0 5 3 5 8s-2 8-5 8H8c-3 0-5-3-5-8s2-8 5-8Z"/><ellipse class="test3-ui-wood-end" cx="8" cy="16" rx="5" ry="8"/><ellipse class="test3-ui-wood-ring" cx="8" cy="16" rx="2.5" ry="4.5"/><path d="M20 9v14"/>',
     stone: '<path d="M4 23 7 14l7-5 7 2 7 8-3 8H9L4 23Z"/><path d="m7 14 7 5 7-4M14 19l-2 8M21 15l4 4"/>',
     food: '<path d="M16 28V7M16 13 9 7M16 18l8-8M12 28V14M12 17l-6-6M20 28V13M20 17l6-6M9 7l-2-2M24 10l2-2"/>',
     workers: '<path d="M10 11c0-3 2-5 6-5s6 2 6 5M8 12h16M16 6V4M8 28c0-6 3-9 8-9s8 3 8 9M5 18l4 4M27 18l-4 4"/><circle cx="16" cy="12" r="4"/>',
@@ -1512,13 +1484,13 @@ function test3CostLabel(resource: Test3Resource, value: number): string {
 function test3BuildingIcon(type: Test3BuildingType): string {
   const icons: Record<Test3BuildingType, string> = {
     townHall: '<path d="M4 28h24M7 28V14h18v14M4 14h24L16 7 4 14Z"/><path d="M16 7V3l5 2-5 2M10 18v10M16 18v10M22 18v10"/><circle cx="16" cy="13" r="2"/>',
-    goldMine: '<path d="M5 28h22M7 28V9h18v19M7 16h18M12 9v19M20 9v19"/><circle cx="16" cy="5" r="2"/><path d="M12 5h8M16 7v4"/><path class="test3-icon-gold" d="m11 23 3-3 4 2 3-3 3 4-2 5h-8l-3-2Z"/>',
+    goldMine: '<path class="test3-icon-mine-dark" d="M5 28V17a11 11 0 0 1 22 0v11Z"/><path class="test3-icon-timber" d="M7 28V17a9 9 0 0 1 18 0v11M7 18h18M10 28V18M22 28V18"/><path d="M3 28h26M5 24h22"/><path class="test3-icon-cart" d="M9 19h14l-2 6H11l-2-6Z"/><circle class="test3-icon-cart-wheel" cx="12" cy="26" r="2"/><circle class="test3-icon-cart-wheel" cx="20" cy="26" r="2"/><path class="test3-icon-gold" d="m12 19 3-3 3 3 3-2 2 2-2 3h-8l-2-3Z"/>',
     sawmill: '<path d="M4 27h24M6 27v-7h10v7"/><path class="test3-icon-wood" d="M4 20h12v7H4z"/><circle cx="22" cy="16" r="7"/><circle cx="22" cy="16" r="2"/><path d="M22 9v5M22 18v5M15 16h5M24 16h5M17 11l3 3M24 18l3 3M27 11l-3 3M20 18l-3 3"/>',
     quarry: '<path class="test3-icon-stone" d="M5 17 10 9l8 2 6-4 4 8-2 11H7L5 17Z"/><path d="M8 22l4-3 3 4 4-3 4 2M18 5h10M21 5l-7 15"/>',
-    house: '<path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M11 28v-7h5v7M22 14V8h4v6M21 8h6M9 17h3v3H9zM20 17h3v3h-3zM10.5 17v3M9 18.5h3M21.5 17v3M20 18.5h3"/>',
-    warehouse: '<path d="M3 9h26v19H3V9Z"/><path d="M6 14h13v14H6V14ZM6 19h13M12 14v14"/><path class="test3-icon-crate" d="M21 15h6v6h-6zM21 23h6v5h-6zM21 18h6M24 15v6M21 25h6M24 23v5"/>',
-    barracks: '<path d="M3 13h26v15H3V13ZM6 13V10h20v3"/><path d="M7 17h4v6H7zM14 17h4v6h-4zM21 17h4v6h-4zM16 4v6M16 4h6l-3 3h3"/>',
-    shipyard: '<path d="M3 28h26M5 25h22"/><path class="test3-icon-hull" d="M6 19h22l-4 7H11l-5-7Z"/><path class="test3-icon-crane" d="M8 25V5h2v20M9 6h19v2H9M28 8v9c0 2-2 3-3 1"/><path d="M13 22h2M18 22h2"/>',
+    house: '<path d="M22 14V7h4v7M21 7h6"/><path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M13 28v-8h6v8M8 17h3v3H8zM21 17h3v3h-3zM9.5 17v3M8 18.5h3M22.5 17v3M21 18.5h3M18 24h1"/>',
+    warehouse: '<path d="M3 12h26v16H3V12ZM3 12l5-6h16l5 6Z"/><path d="M6 16h13v12H6V16ZM6 20h13M12 16v12"/><path class="test3-icon-crate" d="M21 16h6v6h-6zM21 24h6v4h-6zM21 19h6M24 16v6M21 26h6M24 24v4"/>',
+    barracks: '<path d="M3 28V14h26v14H3Z"/><path d="M3 14h6v-4h5v4h5v-4h5v4h6"/><path d="M7 18h4v5H7zM21 18h4v5h-4z"/><path class="test3-icon-shield" d="M16 16 22 19v4c0 3-3 5-6 7-3-2-6-4-6-7v-4l6-3Z"/><path d="M16 4v8M16 4h6l-3 3h3"/>',
+    shipyard: '<path d="M3 28h26M5 25h22"/><path class="test3-icon-hull" d="M5 19h24l-5 8H10l-5-8Z"/><path class="test3-icon-timber" d="M9 19V7h2v12M10 8h17M13 19v6M18 19v6M23 19v6"/><path d="M16 19V5M16 6h8M24 6v5"/>',
     fishingYard: '<path class="test3-icon-fish" d="M4 18c5-7 12-7 18 0-6 7-13 7-18 0ZM21 18l7-5v10l-7-5Z"/><circle class="test3-icon-fish-eye" cx="10" cy="16" r="1"/>',
   };
   return `<svg class="test3-icon-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
@@ -1555,6 +1527,7 @@ function renderTest3(): void {
       .filter((building) => building.type === 'quarry' && building.workerId)
       .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
   const population = test3State.workers.length + test3State.army.soldiers;
+  const foodShortage = test3State.resources.food <= 0;
   const incomeFood = test3State.fleet.fishingBoats * TEST3_FISHING_BOAT_FOOD / 2
     + completedBuildings
       .filter((building) => building.type === 'fishingYard' && building.workerId)
@@ -1735,7 +1708,7 @@ function renderTest3(): void {
           <span class="test3-selection-kicker">Совет управляющего</span>
           <strong>Сначала экономика, потом ратуша</strong>
           <small>Поставьте рудник на золотую жилу и лесопилку на дереве. Дом даёт +2 места и нового рабочего, ратуша даёт +3 места, базовый доход и открывает развитие. Каждый житель расходует 1 еды в секунду.</small>
-          <span class="test3-selection-note">При отрицательной еде каждые 5 секунд погибает рабочий; последний рабочий не погибает.</span>
+          <span class="test3-selection-note">Еда не опускается ниже нуля: при нулевом запасе включается дебафф, и добыча падает на 50%.</span>
         </div>`;
 
   const buildingCards = (Object.keys(TEST3_BUILDING_DEFINITIONS) as Test3BuildingType[]).map((type) => {
@@ -1807,10 +1780,10 @@ function renderTest3(): void {
             <span><small>Камень</small><strong>${test3FormatNumber(test3State.resources.stone)} <em>/ ${test3State.resourceCap}</em></strong></span>
             <b>+${Math.round(incomeStone)}/сек</b>
           </div>
-          <div class="test3-resource test3-resource-food${test3State.resources.food < 0 ? ' is-starving' : ''}">
+          <div class="test3-resource test3-resource-food${foodShortage ? ' is-starving' : ''}">
             <span class="test3-resource-icon">${test3UiIcon('food')}</span>
             <span><small>Еда</small><strong>${test3FormatNumber(test3State.resources.food)} <em>/ ${test3State.resourceCap}</em></strong></span>
-            <b>${incomeFood >= 0 ? '+' : ''}${Math.round(incomeFood)}/сек · −${population} чел.</b>
+            <b>${incomeFood >= 0 ? '+' : ''}${Math.round(incomeFood)}/сек · −${population} чел.${foodShortage ? ' · добыча −50%' : ''}</b>
           </div>
           <div class="test3-resource test3-resource-workers">
             <span class="test3-resource-icon">${test3UiIcon('workers')}</span>
