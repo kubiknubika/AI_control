@@ -465,7 +465,7 @@ function renderTest2(): void {
   }
 
   if (showHoverRange && hoveredStack) {
-    const availableActionPoints = hoveredStack.id === currentFaction && hoveredStack.actionPoints > 0
+    const availableActionPoints = hoveredStack.id === currentFaction
       ? hoveredStack.actionPoints
       : hoveredStack.maxActionPoints;
     addMovementCells(hoveredStack, availableActionPoints, hoverReachableCells);
