@@ -627,8 +627,8 @@ function test3CanPlace(type: Test3BuildingType, x: number, y: number): { valid: 
 
 function test3PreviewAnchor(type: Test3BuildingType, x: number, y: number): { x: number; y: number } {
   const definition = TEST3_BUILDING_DEFINITIONS[type];
-  const anchorX = Math.max(0, Math.min(TEST3_WIDTH - definition.width, x - Math.floor(definition.width / 2)));
-  const anchorY = Math.max(0, Math.min(TEST3_HEIGHT - definition.height, y - Math.floor(definition.height / 2)));
+  const anchorX = Math.max(0, Math.min(TEST3_WIDTH - definition.width, x));
+  const anchorY = Math.max(0, Math.min(TEST3_HEIGHT - definition.height, y));
   return { x: anchorX, y: anchorY };
 }
 
@@ -1258,6 +1258,7 @@ function renderTest3(): void {
       && y >= previewAnchor.y
       && y < previewAnchor.y + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].height,
     );
+    const isPreviewAnchor = Boolean(isPreviewCell && previewAnchor && x === previewAnchor.x && y === previewAnchor.y);
     const classes = [
       'test3-tile',
       `is-${tile.kind}`,
@@ -1266,6 +1267,7 @@ function renderTest3(): void {
       isPreviewCell && previewPlacement?.valid ? 'is-build-valid' : '',
       isPreviewCell && previewPlacement && !previewPlacement.valid ? 'is-build-invalid' : '',
       isPreviewCell ? 'is-build-ghost' : '',
+      isPreviewAnchor ? 'is-build-anchor' : '',
     ].filter(Boolean).join(' ');
     const terrainLabel = tile.kind === 'tree'
       ? 'Дерево'
@@ -1398,7 +1400,7 @@ function renderTest3(): void {
   const logMarkup = test3State.log.map((entry) => `<li>${entry}</li>`).join('');
   const mapClass = buildMode ? ' is-build-mode' : '';
   const mapHint = buildMode
-    ? `Размещение: <strong>${selectedDefinition?.label}</strong> · наведите курсор, чтобы увидеть точный ${selectedDefinition?.width}×${selectedDefinition?.height} участок`
+    ? `Размещение: <strong>${selectedDefinition?.label}</strong> · клетка под курсором — левый верхний угол участка ${selectedDefinition?.width}×${selectedDefinition?.height}`
     : 'Карта поселения · клеточная разметка скрыта';
 
   app.innerHTML = `

@@ -2062,6 +2062,10 @@ h1 {
   box-shadow: inset 0 0 0 999px rgb(239 68 68 / 18%), 0 0 0 1px rgb(250 204 21 / 55%);
 }
 
+.test3-map-wrap.is-build-mode .test3-tile.is-build-anchor {
+  box-shadow: inset 0 0 0 2px rgb(254 240 138 / 92%), 0 0 0 1px rgb(15 23 42 / 65%);
+}
+
 .test3-grass-mark {
   position: absolute;
   inset: 35% 35% 30%;
