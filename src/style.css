@@ -1794,7 +1794,7 @@ h1 {
 
 .test3-resource-bar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 10px;
   border: 1px solid rgb(148 163 184 / 28%);
@@ -1884,6 +1884,15 @@ h1 {
 .test3-resource-workers .test3-resource-icon {
   color: #bfdbfe;
   background: rgb(30 64 175 / 34%);
+}
+
+.test3-resource-army {
+  border-color: rgb(248 113 113 / 34%);
+}
+
+.test3-resource-army .test3-resource-icon {
+  color: #fecaca;
+  background: rgb(127 29 29 / 34%);
 }
 
 .test3-layout {
@@ -2035,6 +2044,12 @@ h1 {
 
 .test3-map-wrap.is-build-mode .test3-tile:hover.is-build-invalid {
   box-shadow: inset 0 0 0 999px rgb(248 113 113 / 25%), 0 0 0 2px rgb(254 202 202 / 45%);
+}
+
+.test3-map-wrap.is-build-mode .test3-tile.is-build-ghost {
+  border-color: #fef08a;
+  background-color: rgb(250 204 21 / 22%);
+  box-shadow: inset 0 0 0 999px rgb(250 204 21 / 14%);
 }
 
 .test3-grass-mark {
@@ -2225,6 +2240,26 @@ h1 {
   background: linear-gradient(145deg, #475569, #1e293b);
 }
 
+.test3-building-barracks {
+  background: linear-gradient(145deg, #991b1b, #450a0a);
+}
+
+.test3-building-ghost {
+  z-index: 4;
+  margin: 2px;
+  border-style: dashed;
+  border-color: #fef08a;
+  background: rgb(161 98 7 / 36%);
+  box-shadow: 0 0 0 2px rgb(250 204 21 / 22%), inset 0 0 20px rgb(250 204 21 / 18%);
+  opacity: 0.8;
+}
+
+.test3-building.is-upgrading {
+  border-color: #fef08a;
+  border-style: dashed;
+  box-shadow: 0 0 0 2px rgb(250 204 21 / 24%), 0 3px 8px rgb(0 0 0 / 42%);
+}
+
 .test3-building-icon {
   color: #fef3c7;
   font-size: clamp(13px, 2vw, 25px);
@@ -2355,6 +2390,66 @@ h1 {
   color: #86efac;
 }
 
+.test3-selection-action {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 8px;
+  border: 1px solid rgb(96 165 250 / 55%);
+  border-radius: 7px;
+  color: #e0f2fe;
+  background: rgb(30 64 175 / 56%);
+  cursor: url('/assets/cursor-pointer.svg') 7 3, pointer;
+  text-align: left;
+}
+
+.test3-selection-action:hover:not(:disabled) {
+  border-color: #bfdbfe;
+  background: rgb(37 99 235 / 78%);
+}
+
+.test3-selection-action strong {
+  font-size: 11px;
+}
+
+.test3-selection-action small {
+  color: #bfdbfe;
+  font-size: 10px;
+}
+
+.test3-selection-action:disabled {
+  border-color: rgb(100 116 139 / 28%);
+  color: #64748b;
+  background: rgb(30 41 59 / 60%);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.test3-selection-action:disabled small {
+  color: #64748b;
+}
+
+.test3-recruit-button {
+  border-color: rgb(248 113 113 / 58%);
+  background: rgb(127 29 29 / 56%);
+}
+
+.test3-recruit-button:hover:not(:disabled) {
+  border-color: #fecaca;
+  background: rgb(185 28 28 / 75%);
+}
+
+.test3-demolish-button {
+  border-color: rgb(248 113 113 / 42%);
+  background: rgb(127 29 29 / 32%);
+}
+
+.test3-demolish-button:hover:not(:disabled) {
+  border-color: #fecaca;
+  background: rgb(127 29 29 / 65%);
+}
+
 .test3-overview-panel {
   display: grid;
   align-content: start;
@@ -2431,7 +2526,7 @@ h1 {
 
 .test3-build-menu {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 

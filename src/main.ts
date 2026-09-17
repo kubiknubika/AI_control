@@ -10,7 +10,7 @@ type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'test2' 
 type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
 type Test2Faction = 'knights' | 'demons';
 type Test3Terrain = 'grass' | 'tree' | 'gold' | 'water' | 'rock';
-type Test3BuildingType = 'townHall' | 'goldMine' | 'sawmill' | 'house' | 'warehouse';
+type Test3BuildingType = 'townHall' | 'goldMine' | 'sawmill' | 'house' | 'warehouse' | 'barracks';
 type Test3WorkerStatus = 'idle' | 'building' | 'working';
 type Test2AttackMode = 'melee' | 'range';
 type BattleMenu = 'skill' | 'magic' | null;
@@ -57,6 +57,9 @@ const TEST3_TICK_DELAY = 1000;
 const TEST3_INITIAL_GOLD = 900;
 const TEST3_INITIAL_WOOD = 700;
 const TEST3_INITIAL_WORKERS = 3;
+const TEST3_MAX_BUILDING_LEVEL = 3;
+const TEST3_ARMY_RECRUIT_GOLD = 80;
+const TEST3_ARMY_RECRUIT_WOOD = 50;
 
 interface Test3Tile {
   kind: Test3Terrain;
@@ -67,6 +70,7 @@ interface Test3Worker {
   label: string;
   status: Test3WorkerStatus;
   buildingId: string | null;
+  previousBuildingId: string | null;
 }
 
 interface Test3Building {
@@ -76,9 +80,18 @@ interface Test3Building {
   y: number;
   width: number;
   height: number;
+  level: number;
   progress: number;
   complete: boolean;
   workerId: string | null;
+  upgrading: boolean;
+  upgradeProgress: number;
+  upgradeWorkerId: string | null;
+}
+
+interface Test3Army {
+  soldiers: number;
+  capacity: number;
 }
 
 interface Test3BuildingDefinition {
@@ -109,9 +122,11 @@ interface Test3State {
   resourceCap: number;
   workers: Test3Worker[];
   workerCap: number;
+  army: Test3Army;
   buildings: Test3Building[];
   selectedBuildingType: Test3BuildingType | null;
   selectedBuildingId: string | null;
+  hoveredTile: { x: number; y: number } | null;
   elapsed: number;
   log: string[];
 }
@@ -161,7 +176,7 @@ const TEST3_BUILDING_DEFINITIONS: Record<Test3BuildingType, Test3BuildingDefinit
   },
   house: {
     label: 'Дом',
-    description: 'Жильё для новых рабочих: +2 к лимиту и один поселенец.',
+    description: 'На стройку можно переназначить рабочего: +2 к лимиту и один поселенец.',
     icon: '⌂',
     goldCost: 100,
     woodCost: 120,
@@ -186,6 +201,19 @@ const TEST3_BUILDING_DEFINITIONS: Record<Test3BuildingType, Test3BuildingDefinit
     requiresTownHall: true,
     requiresWorker: true,
     storageIncrease: 500,
+  },
+  barracks: {
+    label: 'Казарма',
+    description: 'Военный двор: открывает вербовку мечников и увеличивает армию.',
+    icon: '⚔',
+    goldCost: 260,
+    woodCost: 220,
+    width: 2,
+    height: 1,
+    buildTime: 5,
+    target: 'grass',
+    requiresTownHall: true,
+    requiresWorker: true,
   },
 };
 
@@ -457,6 +485,7 @@ function createTest3State(): Test3State {
     label: `Рабочий ${index + 1}`,
     status: 'idle',
     buildingId: null,
+    previousBuildingId: null,
   }));
 
   return {
@@ -468,9 +497,14 @@ function createTest3State(): Test3State {
     resourceCap: 1000,
     workers,
     workerCap: TEST3_INITIAL_WORKERS,
+    army: {
+      soldiers: 0,
+      capacity: 0,
+    },
     buildings: [],
     selectedBuildingType: null,
     selectedBuildingId: null,
+    hoveredTile: null,
     elapsed: 0,
     log: [
       'Поселение готово. Выберите постройку в нижней панели.',
@@ -503,6 +537,33 @@ function test3IdleWorker(): Test3Worker | null {
   return test3State.workers.find((worker) => worker.status === 'idle') ?? null;
 }
 
+function test3BuilderCandidate(): Test3Worker | null {
+  return test3IdleWorker() ?? test3State.workers.find((worker) => worker.status === 'working') ?? null;
+}
+
+function test3TakeBuilder(preferredBuildingId?: string): Test3Worker | null {
+  const preferredWorker = preferredBuildingId
+    ? test3State.workers.find((candidate) => candidate.status === 'working' && candidate.buildingId === preferredBuildingId) ?? null
+    : null;
+  const worker = preferredWorker ?? test3BuilderCandidate();
+  if (!worker) {
+    return null;
+  }
+  if (worker.status === 'working' && worker.buildingId) {
+    const oldBuilding = test3State.buildings.find((building) => building.id === worker.buildingId);
+    if (oldBuilding) {
+      oldBuilding.workerId = null;
+      worker.previousBuildingId = oldBuilding.id;
+      test3AddLog(`${worker.label} снят с объекта ${TEST3_BUILDING_DEFINITIONS[oldBuilding.type].label}. Добыча временно остановлена.`);
+    }
+  } else {
+    worker.previousBuildingId = null;
+  }
+  worker.status = 'building';
+  worker.buildingId = null;
+  return worker;
+}
+
 function test3BuildingCount(type: Test3BuildingType): number {
   return test3State.buildings.filter((building) => building.type === type).length;
 }
@@ -525,8 +586,8 @@ function test3BuildAvailability(type: Test3BuildingType): { available: boolean; 
   if (test3State.resources.wood < definition.woodCost) {
     return { available: false, reason: `Нужно ${definition.woodCost} древесины` };
   }
-  if (definition.requiresWorker && !test3IdleWorker()) {
-    return { available: false, reason: 'Нет свободного рабочего' };
+  if (definition.requiresWorker && !test3BuilderCandidate()) {
+    return { available: false, reason: 'Нет рабочих' };
   }
   return { available: true, reason: 'Готово к размещению' };
 }
@@ -559,6 +620,94 @@ function test3CanPlace(type: Test3BuildingType, x: number, y: number): { valid: 
   return { valid: true, reason: 'Можно строить' };
 }
 
+function test3FindPlacementAnchor(type: Test3BuildingType, x: number, y: number): { x: number; y: number } | null {
+  const definition = TEST3_BUILDING_DEFINITIONS[type];
+  const candidates: Array<{ x: number; y: number; distance: number }> = [];
+  for (let anchorY = 0; anchorY <= TEST3_HEIGHT - definition.height; anchorY += 1) {
+    for (let anchorX = 0; anchorX <= TEST3_WIDTH - definition.width; anchorX += 1) {
+      const placement = test3CanPlace(type, anchorX, anchorY);
+      if (!placement.valid) {
+        continue;
+      }
+      const coversCell = x >= anchorX
+        && x < anchorX + definition.width
+        && y >= anchorY
+        && y < anchorY + definition.height;
+      if (coversCell) {
+        const centerX = anchorX + (definition.width - 1) / 2;
+        const centerY = anchorY + (definition.height - 1) / 2;
+        candidates.push({
+          x: anchorX,
+          y: anchorY,
+          distance: Math.hypot(centerX - x, centerY - y),
+        });
+      }
+    }
+  }
+  candidates.sort((left, right) => left.distance - right.distance);
+  const candidate = candidates[0];
+  return candidate ? { x: candidate.x, y: candidate.y } : null;
+}
+
+function test3UpgradeCosts(building: Test3Building): { gold: number; wood: number; time: number } {
+  const definition = TEST3_BUILDING_DEFINITIONS[building.type];
+  const multiplier = building.level;
+  return {
+    gold: Math.round(definition.goldCost * (0.7 + multiplier * 0.25)),
+    wood: Math.round(definition.woodCost * (0.7 + multiplier * 0.25)),
+    time: 3 + multiplier,
+  };
+}
+
+function test3UpgradeAvailability(building: Test3Building): { available: boolean; reason: string } {
+  if (!building.complete) {
+    return { available: false, reason: 'Сначала завершите строительство' };
+  }
+  if (building.upgrading) {
+    return { available: false, reason: 'Улучшение уже идёт' };
+  }
+  if (building.level >= TEST3_MAX_BUILDING_LEVEL) {
+    return { available: false, reason: 'Максимальный уровень' };
+  }
+  const costs = test3UpgradeCosts(building);
+  if (test3State.resources.gold < costs.gold) {
+    return { available: false, reason: `Нужно ${costs.gold} золота` };
+  }
+  if (test3State.resources.wood < costs.wood) {
+    return { available: false, reason: `Нужно ${costs.wood} древесины` };
+  }
+  if (!test3BuilderCandidate()) {
+    return { available: false, reason: 'Нет рабочих для улучшения' };
+  }
+  return { available: true, reason: `Улучшить до ${building.level + 1} уровня` };
+}
+
+function test3ProductionAmount(building: Test3Building): number {
+  const definition = TEST3_BUILDING_DEFINITIONS[building.type];
+  return Math.round((definition.productionAmount ?? 0) * (1 + (building.level - 1) * 0.5));
+}
+
+function test3RestoreWorker(worker: Test3Worker): boolean {
+  const previousBuilding = worker.previousBuildingId
+    ? test3State.buildings.find((building) => building.id === worker.previousBuildingId) ?? null
+    : null;
+  if (previousBuilding) {
+    const definition = TEST3_BUILDING_DEFINITIONS[previousBuilding.type];
+    if (previousBuilding.complete && !previousBuilding.upgrading && definition.production && !previousBuilding.workerId) {
+      previousBuilding.workerId = worker.id;
+      worker.status = 'working';
+      worker.buildingId = previousBuilding.id;
+      worker.previousBuildingId = null;
+      test3AddLog(`${worker.label} вернулся к работе в ${definition.label}.`);
+      return true;
+    }
+  }
+  worker.status = 'idle';
+  worker.buildingId = null;
+  worker.previousBuildingId = null;
+  return false;
+}
+
 function test3AddLog(text: string): void {
   test3State.log.push(text);
   test3State.log = test3State.log.slice(-7);
@@ -570,16 +719,17 @@ function test3PlaceBuilding(x: number, y: number): void {
     return;
   }
   const definition = TEST3_BUILDING_DEFINITIONS[type];
-  const placement = test3CanPlace(type, x, y);
-  if (!placement.valid) {
+  const anchor = test3FindPlacementAnchor(type, x, y);
+  if (!anchor) {
+    const placement = test3CanPlace(type, x, y);
     test3AddLog(`${definition.label}: ${placement.reason}.`);
     render('test3');
     return;
   }
 
-  const worker = test3IdleWorker();
+  const worker = test3TakeBuilder();
   if (!worker) {
-    test3AddLog('Нет свободного рабочего для строительства.');
+    test3AddLog('Нет рабочего для строительства.');
     render('test3');
     return;
   }
@@ -589,18 +739,23 @@ function test3PlaceBuilding(x: number, y: number): void {
   const building: Test3Building = {
     id: `building-${Date.now()}-${test3State.buildings.length}`,
     type,
-    x,
-    y,
+    x: anchor.x,
+    y: anchor.y,
     width: definition.width,
     height: definition.height,
+    level: 1,
     progress: 0,
     complete: false,
     workerId: worker.id,
+    upgrading: false,
+    upgradeProgress: 0,
+    upgradeWorkerId: null,
   };
   test3State.buildings.push(building);
   worker.status = 'building';
   worker.buildingId = building.id;
   test3State.selectedBuildingType = null;
+  test3State.hoveredTile = null;
   test3State.selectedBuildingId = building.id;
   test3AddLog(`Начато строительство: ${definition.label}. Рабочий занят на ${definition.buildTime} сек.`);
   audioManager.playBattleSound('item');
@@ -616,10 +771,10 @@ function test3CompleteBuilding(building: Test3Building): void {
   if (definition.production && worker) {
     worker.status = 'working';
     worker.buildingId = building.id;
+    worker.previousBuildingId = null;
   } else if (worker) {
-    worker.status = 'idle';
-    worker.buildingId = null;
     building.workerId = null;
+    test3RestoreWorker(worker);
   }
 
   if (definition.workerCapIncrease) {
@@ -631,6 +786,7 @@ function test3CompleteBuilding(building: Test3Building): void {
         label: `Рабочий ${workerNumber}`,
         status: 'idle',
         buildingId: null,
+        previousBuildingId: null,
       });
       test3AddLog(`${definition.label} завершена. Новый рабочий прибыл в поселение.`);
     } else {
@@ -640,11 +796,149 @@ function test3CompleteBuilding(building: Test3Building): void {
     test3State.resourceCap += definition.storageIncrease;
     test3AddLog(`${definition.label} завершён. Вместимость ресурсов: ${test3State.resourceCap}.`);
   } else if (definition.production) {
-    test3AddLog(`${definition.label} запущен. Добыча: +${definition.productionAmount ?? 0} ${test3ResourceLabel(definition.production)} каждые 2 сек.`);
+    test3AddLog(`${definition.label} запущен. Добыча: +${test3ProductionAmount(building)} ${test3ResourceLabel(definition.production)} каждые 2 сек.`);
+  } else if (building.type === 'barracks') {
+    test3State.army.capacity += 4;
+    test3AddLog(`${definition.label} завершена. Вместимость армии: ${test3State.army.capacity}.`);
   } else {
     test3AddLog(`${definition.label} завершена.`);
   }
   audioManager.playBattleSound('magic');
+}
+
+function test3CompleteUpgrade(building: Test3Building): void {
+  const definition = TEST3_BUILDING_DEFINITIONS[building.type];
+  building.level += 1;
+  building.upgrading = false;
+  building.upgradeProgress = 0;
+  const worker = building.upgradeWorkerId
+    ? test3State.workers.find((candidate) => candidate.id === building.upgradeWorkerId) ?? null
+    : null;
+  building.upgradeWorkerId = null;
+
+  if (definition.production && worker) {
+    worker.status = 'working';
+    worker.buildingId = building.id;
+    worker.previousBuildingId = null;
+    building.workerId = worker.id;
+  } else if (worker) {
+    building.workerId = null;
+    test3RestoreWorker(worker);
+  }
+
+  if (definition.workerCapIncrease) {
+    test3State.workerCap += Math.max(1, Math.round(definition.workerCapIncrease / 2));
+  }
+  if (definition.storageIncrease) {
+    test3State.resourceCap += Math.round(definition.storageIncrease / 2);
+  }
+  if (building.type === 'barracks') {
+    test3State.army.capacity += 2;
+  }
+  test3AddLog(`${definition.label} улучшена до ${building.level} уровня.`);
+  audioManager.playBattleSound('magic');
+}
+
+function test3StartUpgrade(building: Test3Building): void {
+  const availability = test3UpgradeAvailability(building);
+  if (!availability.available) {
+    test3AddLog(`${TEST3_BUILDING_DEFINITIONS[building.type].label}: ${availability.reason}.`);
+    render('test3');
+    return;
+  }
+  const costs = test3UpgradeCosts(building);
+  const worker = test3TakeBuilder(building.id);
+  if (!worker) {
+    test3AddLog('Нет рабочего для улучшения.');
+    render('test3');
+    return;
+  }
+  test3State.resources.gold -= costs.gold;
+  test3State.resources.wood -= costs.wood;
+  building.upgrading = true;
+  building.upgradeProgress = 0;
+  building.upgradeWorkerId = worker.id;
+  building.workerId = null;
+  worker.buildingId = building.id;
+  test3State.selectedBuildingId = building.id;
+  test3AddLog(`Начато улучшение ${TEST3_BUILDING_DEFINITIONS[building.type].label} до ${building.level + 1} уровня.`);
+  audioManager.playBattleSound('item');
+  render('test3');
+}
+
+function test3RecruitArmy(buildingId: string): void {
+  const building = test3State.buildings.find((candidate) => candidate.id === buildingId);
+  if (!building || building.type !== 'barracks' || !building.complete || building.upgrading) {
+    return;
+  }
+  if (test3State.army.soldiers >= test3State.army.capacity) {
+    test3AddLog('Казармы заполнены: улучшите казарму или постройте ещё одну.');
+    render('test3');
+    return;
+  }
+  if (test3State.resources.gold < TEST3_ARMY_RECRUIT_GOLD || test3State.resources.wood < TEST3_ARMY_RECRUIT_WOOD) {
+    test3AddLog(`Для вербовки нужны ${TEST3_ARMY_RECRUIT_GOLD} золота и ${TEST3_ARMY_RECRUIT_WOOD} древесины.`);
+    render('test3');
+    return;
+  }
+  test3State.resources.gold -= TEST3_ARMY_RECRUIT_GOLD;
+  test3State.resources.wood -= TEST3_ARMY_RECRUIT_WOOD;
+  test3State.army.soldiers += 1;
+  test3AddLog(`В казарме завербован мечник. Армия: ${test3State.army.soldiers}/${test3State.army.capacity}.`);
+  audioManager.playBattleSound('hit');
+  render('test3');
+}
+
+function test3DemolishBuilding(): void {
+  const buildingId = test3State.selectedBuildingId;
+  if (!buildingId) {
+    return;
+  }
+  const buildingIndex = test3State.buildings.findIndex((building) => building.id === buildingId);
+  const building = buildingIndex >= 0 ? test3State.buildings[buildingIndex] : null;
+  if (!building) {
+    return;
+  }
+  if (building.type === 'townHall' && test3State.buildings.some((candidate) => (
+    candidate.id !== building.id
+    && ['house', 'warehouse', 'barracks'].includes(candidate.type)
+  ))) {
+    test3AddLog('Ратушу нельзя снести, пока работают дома, склад или казарма.');
+    render('test3');
+    return;
+  }
+
+  const workerIds = [building.workerId, building.upgradeWorkerId].filter((workerId): workerId is string => workerId !== null);
+  const definition = TEST3_BUILDING_DEFINITIONS[building.type];
+  test3State.buildings.splice(buildingIndex, 1);
+  workerIds.forEach((workerId) => {
+    const worker = test3State.workers.find((candidate) => candidate.id === workerId);
+    if (worker) {
+      worker.status = 'idle';
+      worker.buildingId = null;
+      test3RestoreWorker(worker);
+    }
+  });
+  const refundGold = Math.floor(definition.goldCost * 0.5);
+  const refundWood = Math.floor(definition.woodCost * 0.5);
+  test3State.resources.gold = Math.min(test3State.resourceCap, test3State.resources.gold + refundGold);
+  test3State.resources.wood = Math.min(test3State.resourceCap, test3State.resources.wood + refundWood);
+  if (building.complete && definition.workerCapIncrease) {
+    const capReduction = definition.workerCapIncrease + Math.max(0, building.level - 1) * Math.max(1, Math.round(definition.workerCapIncrease / 2));
+    test3State.workerCap = Math.max(test3State.workers.length, test3State.workerCap - capReduction);
+  }
+  if (building.complete && definition.storageIncrease) {
+    const storageReduction = definition.storageIncrease + Math.max(0, building.level - 1) * Math.round(definition.storageIncrease / 2);
+    test3State.resourceCap = Math.max(1000, test3State.resourceCap - storageReduction, test3State.resources.gold, test3State.resources.wood);
+  }
+  if (building.complete && building.type === 'barracks') {
+    test3State.army.capacity = Math.max(0, test3State.army.capacity - (building.level === 1 ? 4 : 4 + (building.level - 1) * 2));
+    test3State.army.soldiers = Math.min(test3State.army.soldiers, test3State.army.capacity);
+  }
+  test3State.selectedBuildingId = null;
+  test3AddLog(`${definition.label} снесена. Возвращено ${refundGold} золота и ${refundWood} древесины.`);
+  audioManager.playBattleSound('item');
+  render('test3');
 }
 
 function test3Tick(): void {
@@ -665,6 +959,15 @@ function test3Tick(): void {
       return;
     }
 
+    if (building.upgrading) {
+      const upgradeCosts = test3UpgradeCosts(building);
+      building.upgradeProgress = Math.min(1, building.upgradeProgress + 1 / upgradeCosts.time);
+      if (building.upgradeProgress >= 1) {
+        test3CompleteUpgrade(building);
+      }
+      return;
+    }
+
     if (!definition.production || !building.workerId) {
       return;
     }
@@ -672,7 +975,7 @@ function test3Tick(): void {
     if (!worker || worker.status !== 'working') {
       return;
     }
-    const amount = (definition.productionAmount ?? 0) / 2;
+    const amount = test3ProductionAmount(building) / 2;
     if (definition.production === 'gold') {
       const before = test3State.resources.gold;
       test3State.resources.gold = Math.min(test3State.resourceCap, test3State.resources.gold + amount);
@@ -720,6 +1023,7 @@ function selectTest3Building(type: Test3BuildingType): void {
     return;
   }
   test3State.selectedBuildingId = null;
+  test3State.hoveredTile = null;
   test3State.selectedBuildingType = test3State.selectedBuildingType === type ? null : type;
   if (test3State.selectedBuildingType) {
     test3AddLog(`Режим строительства: ${TEST3_BUILDING_DEFINITIONS[type].label}. Зелёные клетки подходят, красные — нет.`);
@@ -933,24 +1237,36 @@ function renderTest3(): void {
   const completedBuildings = test3State.buildings.filter((building) => building.complete);
   const incomeGold = completedBuildings
     .filter((building) => building.type === 'goldMine' && building.workerId)
-    .length * ((TEST3_BUILDING_DEFINITIONS.goldMine.productionAmount ?? 0) / 2);
+    .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
   const incomeWood = completedBuildings
     .filter((building) => building.type === 'sawmill' && building.workerId)
-    .length * ((TEST3_BUILDING_DEFINITIONS.sawmill.productionAmount ?? 0) / 2);
+    .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
   const occupiedWorkers = test3State.workers.filter((worker) => worker.status !== 'idle').length;
+  const ghostAnchor = buildMode && test3State.hoveredTile && test3State.selectedBuildingType
+    ? test3FindPlacementAnchor(test3State.selectedBuildingType, test3State.hoveredTile.x, test3State.hoveredTile.y)
+    : null;
   const mapTiles = Array.from({ length: TEST3_HEIGHT }, (_, y) => Array.from({ length: TEST3_WIDTH }, (_, x) => {
     const tile = test3TileAt(x, y) as Test3Tile;
     const building = test3BuildingAt(x, y);
-    const placement = test3State.selectedBuildingType
-      ? test3CanPlace(test3State.selectedBuildingType, x, y)
+    const previewAnchor = test3State.selectedBuildingType
+      ? test3FindPlacementAnchor(test3State.selectedBuildingType, x, y)
       : null;
+    const isGhostCell = Boolean(
+      ghostAnchor
+      && test3State.selectedBuildingType
+      && x >= ghostAnchor.x
+      && x < ghostAnchor.x + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].width
+      && y >= ghostAnchor.y
+      && y < ghostAnchor.y + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].height,
+    );
     const classes = [
       'test3-tile',
       `is-${tile.kind}`,
       tile.kind === 'tree' || tile.kind === 'gold' ? 'is-resource-node' : '',
       building ? 'has-building' : '',
-      placement?.valid ? 'is-build-valid' : '',
-      placement && !placement.valid ? 'is-build-invalid' : '',
+      previewAnchor ? 'is-build-valid' : '',
+      buildMode && !previewAnchor ? 'is-build-invalid' : '',
+      isGhostCell ? 'is-build-ghost' : '',
     ].filter(Boolean).join(' ');
     const terrainLabel = tile.kind === 'tree'
       ? 'Дерево'
@@ -964,21 +1280,36 @@ function renderTest3(): void {
     </button>`;
   })).flat().join('');
 
+  const ghostMarkup = ghostAnchor && test3State.selectedBuildingType && selectedDefinition
+    ? `<div class="test3-building test3-building-ghost test3-building-${test3State.selectedBuildingType}" style="grid-column: ${ghostAnchor.x + 1} / span ${selectedDefinition.width}; grid-row: ${ghostAnchor.y + 1} / span ${selectedDefinition.height};" aria-hidden="true">
+        <span class="test3-building-icon">${selectedDefinition.icon}</span>
+        <strong>${selectedDefinition.label}</strong>
+        <small>Предпросмотр ${selectedDefinition.width}×${selectedDefinition.height}</small>
+      </div>`
+    : '';
   const buildingMarkup = test3State.buildings.map((building) => {
     const definition = TEST3_BUILDING_DEFINITIONS[building.type];
-    const worker = building.workerId
-      ? test3State.workers.find((candidate) => candidate.id === building.workerId) ?? null
+    const activeWorkerId = building.upgrading ? building.upgradeWorkerId : building.workerId;
+    const worker = activeWorkerId
+      ? test3State.workers.find((candidate) => candidate.id === activeWorkerId) ?? null
       : null;
-    const workerMarkup = worker && (!building.complete || definition.production)
+    const workerMarkup = worker && (!building.complete || building.upgrading || definition.production)
       ? `<span class="test3-building-worker ${worker.status === 'working' ? 'is-working' : ''}" title="${worker.label}">⚒</span>`
       : '';
     const selected = test3State.selectedBuildingId === building.id ? ' is-selected' : '';
-    const progress = Math.round(building.progress * 100);
-    return `<div class="test3-building test3-building-${building.type}${selected}${building.complete ? ' is-complete' : ' is-under-construction'}" style="grid-column: ${building.x + 1} / span ${building.width}; grid-row: ${building.y + 1} / span ${building.height};" aria-label="${definition.label}">
+    const progress = Math.round((building.upgrading ? building.upgradeProgress : building.progress) * 100);
+    const statusText = !building.complete
+      ? `Строительство ${progress}%`
+      : building.upgrading
+        ? `Улучшение до ${building.level + 1} ур. · ${progress}%`
+        : definition.production
+          ? `+${test3ProductionAmount(building)} / 2 сек · ур. ${building.level}`
+          : `Готово · ур. ${building.level}`;
+    return `<div class="test3-building test3-building-${building.type}${selected}${building.complete ? ' is-complete' : ' is-under-construction'}${building.upgrading ? ' is-upgrading' : ''}" style="grid-column: ${building.x + 1} / span ${building.width}; grid-row: ${building.y + 1} / span ${building.height};" aria-label="${definition.label}">
       <span class="test3-building-icon">${definition.icon}</span>
       <strong>${definition.label}</strong>
-      <small>${building.complete ? definition.production ? `+${definition.productionAmount ?? 0} / 2 сек` : 'Готово' : `Строительство ${progress}%`}</small>
-      ${!building.complete ? `<span class="test3-construction-bar"><i style="width: ${progress}%"></i></span>` : ''}
+      <small>${statusText}</small>
+      ${!building.complete || building.upgrading ? `<span class="test3-construction-bar"><i style="width: ${progress}%"></i></span>` : ''}
       ${workerMarkup}
     </div>`;
   }).join('');
@@ -995,18 +1326,52 @@ function renderTest3(): void {
         const definition = TEST3_BUILDING_DEFINITIONS[selectedBuilding.type];
         const worker = selectedBuilding.workerId
           ? test3State.workers.find((candidate) => candidate.id === selectedBuilding.workerId)
-          : null;
+          : selectedBuilding.upgradeWorkerId
+            ? test3State.workers.find((candidate) => candidate.id === selectedBuilding.upgradeWorkerId)
+            : null;
+        const upgradeAvailability = test3UpgradeAvailability(selectedBuilding);
+        const upgradeCosts = selectedBuilding.level < TEST3_MAX_BUILDING_LEVEL ? test3UpgradeCosts(selectedBuilding) : null;
+        const upgradeMarkup = selectedBuilding.complete
+          ? `<button class="test3-selection-action test3-upgrade-button" type="button" data-test3-upgrade="${selectedBuilding.id}"${upgradeAvailability.available ? '' : ' disabled'}>
+              <strong>Улучшить до ${Math.min(TEST3_MAX_BUILDING_LEVEL, selectedBuilding.level + 1)} уровня</strong>
+              <small>${upgradeCosts ? `◆ ${upgradeCosts.gold} · ▰ ${upgradeCosts.wood} · ${upgradeCosts.time} сек` : upgradeAvailability.reason}</small>
+            </button>`
+          : '';
+        const recruitAvailable = selectedBuilding.type === 'barracks'
+          && selectedBuilding.complete
+          && !selectedBuilding.upgrading
+          && test3State.army.soldiers < test3State.army.capacity
+          && test3State.resources.gold >= TEST3_ARMY_RECRUIT_GOLD
+          && test3State.resources.wood >= TEST3_ARMY_RECRUIT_WOOD;
+        const recruitMarkup = selectedBuilding.type === 'barracks' && selectedBuilding.complete
+          ? `<button class="test3-selection-action test3-recruit-button" type="button" data-test3-recruit="${selectedBuilding.id}"${recruitAvailable ? '' : ' disabled'}>
+              <strong>Вербовать мечника</strong>
+              <small>◆ ${TEST3_ARMY_RECRUIT_GOLD} · ▰ ${TEST3_ARMY_RECRUIT_WOOD} · ${test3State.army.soldiers}/${test3State.army.capacity}</small>
+            </button>`
+          : '';
         return `<div class="test3-selection-info">
-          <span class="test3-selection-kicker">Выбрано поселение</span>
+          <span class="test3-selection-kicker">Выбрано поселение · уровень ${selectedBuilding.level}</span>
           <strong>${definition.icon} ${definition.label}</strong>
-          <small>${selectedBuilding.complete ? definition.description : `Строительство: ${Math.round(selectedBuilding.progress * 100)}%`}</small>
-          <span class="test3-selection-note">${worker ? `${worker.label}: ${worker.status === 'working' ? 'добывает ресурс' : 'строит'}` : 'Рабочий не требуется'}</span>
+          <small>${!selectedBuilding.complete
+            ? `Строительство: ${Math.round(selectedBuilding.progress * 100)}%`
+            : selectedBuilding.upgrading
+              ? `Улучшение: ${Math.round(selectedBuilding.upgradeProgress * 100)}%`
+              : definition.description}</small>
+          <span class="test3-selection-note">${worker
+            ? `${worker.label}: ${selectedBuilding.upgrading ? 'улучшает здание' : worker.status === 'working' ? 'добывает ресурс' : 'строит'}`
+            : selectedBuilding.upgrading ? 'Рабочий улучшает здание' : 'Рабочий свободен после строительства'}</span>
+          ${recruitMarkup}
+          ${upgradeMarkup}
+          <button class="test3-selection-action test3-demolish-button" type="button" data-test3-demolish="${selectedBuilding.id}">
+            <strong>Снести здание</strong>
+            <small>Вернётся 50% ресурсов</small>
+          </button>
         </div>`;
       })()
       : `<div class="test3-selection-info">
           <span class="test3-selection-kicker">Совет управляющего</span>
           <strong>Сначала экономика, потом ратуша</strong>
-          <small>Поставьте рудник на золотую жилу и лесопилку на дереве. После завершения они сами назначат рабочих.</small>
+          <small>Поставьте рудник на золотую жилу и лесопилку на дереве. После завершения они сами назначат рабочих; дома освобождают строителя.</small>
           <span class="test3-selection-note">Сетка появится только после выбора постройки.</span>
         </div>`;
 
@@ -1021,7 +1386,7 @@ function renderTest3(): void {
       <span class="test3-build-card-copy">
         <strong>${definition.label}</strong>
         <small>${definition.description}</small>
-        <span class="test3-build-target">${targetLabel} · ${definition.buildTime} сек</span>
+        <span class="test3-build-target">${targetLabel} · ${definition.width}×${definition.height} · ${definition.buildTime} сек</span>
       </span>
       <span class="test3-build-cost">
         <b class="is-gold">◆ ${definition.goldCost}</b>
@@ -1068,6 +1433,11 @@ function renderTest3(): void {
             <span><small>Рабочие</small><strong>${test3State.workers.length} / ${test3State.workerCap}</strong></span>
             <b>${occupiedWorkers} занято</b>
           </div>
+          <div class="test3-resource test3-resource-army">
+            <span class="test3-resource-icon">⚔</span>
+            <span><small>Армия</small><strong>${test3State.army.soldiers} / ${test3State.army.capacity}</strong></span>
+            <b>мечники</b>
+          </div>
         </section>
 
         <div class="test3-layout">
@@ -1079,6 +1449,7 @@ function renderTest3(): void {
             <div class="test3-map-wrap${mapClass}">
               <div class="test3-map" style="--test3-columns: ${TEST3_WIDTH}; --test3-rows: ${TEST3_HEIGHT};">
                 ${mapTiles}
+                ${ghostMarkup}
                 ${buildingMarkup}
               </div>
               <div class="test3-map-legend"><span><i class="is-tree"></i> дерево</span><span><i class="is-gold"></i> золото</span><span><i class="is-building"></i> постройка</span></div>
@@ -1093,6 +1464,7 @@ function renderTest3(): void {
               <span><b>${test3State.buildings.filter((building) => !building.complete).length}</b> строится</span>
               <span><b>${test3State.buildings.filter((building) => building.type === 'goldMine' && building.complete).length}</b> рудников</span>
               <span><b>${test3State.buildings.filter((building) => building.type === 'sawmill' && building.complete).length}</b> лесопилок</span>
+              <span><b>${test3State.army.soldiers}/${test3State.army.capacity}</b> армия</span>
             </div>
             <section class="test3-log-panel" aria-labelledby="test3-log-title">
               <h2 id="test3-log-title">Журнал</h2>
@@ -1104,7 +1476,7 @@ function renderTest3(): void {
         <section class="test3-build-panel" aria-labelledby="test3-build-title">
           <div class="test3-build-heading">
             <div><strong id="test3-build-title">Строительство</strong><span>Выберите здание, затем клетку на карте</span></div>
-            <small>Свободных рабочих: ${test3State.workers.filter((worker) => worker.status === 'idle').length}</small>
+            <small>Для стройки: ${test3State.workers.filter((worker) => worker.status !== 'building').length} · занятые добычей могут быть переназначены</small>
           </div>
           <div class="test3-build-menu">${buildingCards}</div>
         </section>
@@ -2498,6 +2870,32 @@ app.addEventListener('pointerleave', () => {
   }
 });
 
+app.addEventListener('pointermove', (event: PointerEvent) => {
+  if (activeScreen !== 'test3') {
+    return;
+  }
+  const target = event.target;
+  const cell = target instanceof Element
+    ? target.closest('[data-test3-x][data-test3-y]') as HTMLElement | null
+    : null;
+  const nextHovered = cell
+    ? { x: Number(cell.dataset.test3X), y: Number(cell.dataset.test3Y) }
+    : null;
+  const previous = test3State.hoveredTile;
+  if (previous?.x === nextHovered?.x && previous?.y === nextHovered?.y) {
+    return;
+  }
+  test3State.hoveredTile = nextHovered;
+  render('test3');
+});
+
+app.addEventListener('pointerleave', () => {
+  if (activeScreen === 'test3' && test3State.hoveredTile !== null) {
+    test3State.hoveredTile = null;
+    render('test3');
+  }
+});
+
 app.addEventListener('click', (event: MouseEvent) => {
   const clickedElement = event.target;
 
@@ -2538,6 +2936,7 @@ app.addEventListener('click', (event: MouseEvent) => {
 
   if (activeScreen === 'test3' && button.dataset.test3Cancel !== undefined) {
     test3State.selectedBuildingType = null;
+    test3State.hoveredTile = null;
     render('test3');
     return;
   }
@@ -2545,6 +2944,26 @@ app.addEventListener('click', (event: MouseEvent) => {
   const test3Build = button.dataset.test3Build;
   if (activeScreen === 'test3' && isTest3BuildingType(test3Build)) {
     selectTest3Building(test3Build);
+    return;
+  }
+
+  if (activeScreen === 'test3' && button.dataset.test3Upgrade) {
+    const building = test3State.buildings.find((candidate) => candidate.id === button.dataset.test3Upgrade);
+    if (building) {
+      test3StartUpgrade(building);
+    }
+    return;
+  }
+
+  if (activeScreen === 'test3' && button.dataset.test3Recruit) {
+    test3RecruitArmy(button.dataset.test3Recruit);
+    return;
+  }
+
+  if (activeScreen === 'test3' && button.dataset.test3Demolish) {
+    if (test3State.selectedBuildingId === button.dataset.test3Demolish) {
+      test3DemolishBuilding();
+    }
     return;
   }
 
@@ -2607,6 +3026,7 @@ app.addEventListener('contextmenu', (event: MouseEvent) => {
   if (target instanceof Element && target.closest('[data-test3-x][data-test3-y]')) {
     event.preventDefault();
     test3State.selectedBuildingType = null;
+    test3State.hoveredTile = null;
     render('test3');
   }
 });
@@ -2614,6 +3034,7 @@ app.addEventListener('contextmenu', (event: MouseEvent) => {
 window.addEventListener('keydown', (event: KeyboardEvent) => {
   if (event.key === 'Escape' && activeScreen === 'test3' && test3State.selectedBuildingType !== null) {
     test3State.selectedBuildingType = null;
+    test3State.hoveredTile = null;
     render('test3');
   }
 });
@@ -2641,12 +3062,12 @@ app.addEventListener('change', (event: Event) => {
 });
 
 window.addEventListener('pointerdown', () => {
-  if (activeScreen !== 'testBattle' && activeScreen !== 'test2') {
+  if (activeScreen !== 'testBattle' && activeScreen !== 'test2' && activeScreen !== 'test3') {
     audioManager.startMusic();
   }
 }, { passive: true });
 window.addEventListener('keydown', () => {
-  if (activeScreen !== 'testBattle' && activeScreen !== 'test2') {
+  if (activeScreen !== 'testBattle' && activeScreen !== 'test2' && activeScreen !== 'test3') {
     audioManager.startMusic();
   }
 });
