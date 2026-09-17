@@ -18,7 +18,7 @@ flowchart TD
     menu[Главное меню]
     placeholders[Заглушки\nИгра / Тесты]
     settingsScreen[Экран настроек]
-    music[public/audio/menu-music.wav]
+    music[Внешние human-made music sources\nMUSIC_TRACKS]
     soft[public/audio/button-soft.wav]
     arcane[public/audio/button-arcane.wav]
     stone[public/audio/button-stone.wav]
@@ -27,8 +27,7 @@ flowchart TD
     background[public/assets/menu-fantasy-background.png]
     cursorDefault[public/assets/cursor-default.svg]
     cursorPointer[public/assets/cursor-pointer.svg]
-    generator[scripts/generate_menu_audio.py]
-    generated[Сгенерированные WAV-файлы]
+    credits[docs/audio-credits.md\nлицензии и источники]
     vite[Vite\nсборка и dev preview]
 
     browser --> html
@@ -45,6 +44,7 @@ flowchart TD
     settingsScreen --> settings
     settings --> audio
     audio --> music
+    credits --> music
     audio --> soft
     audio --> arcane
     audio --> stone
@@ -55,9 +55,6 @@ flowchart TD
     styles --> background
     styles --> cursorDefault
     styles --> cursorPointer
-    generator --> generated
-    generated --> music
-    generated --> rune
     vite --> html
     vite --> entry
     vite --> styles
@@ -70,12 +67,12 @@ flowchart TD
 | Узел | Ответственность | Что не должен знать |
 |---|---|---|
 | `index.html` | HTML-точка входа, корневой `#app`, явные слои фона и затемнения | Игровые правила и аудиологику |
-| `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали генерации WAV |
-| `src/audio.ts` | Загрузка музыки и SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
-| `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, scrollbar, курсоры | Переключение экранов и аудиосостояние |
+| `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали аудиофайлов и CSS |
+| `src/audio.ts` | Загрузка внешних music tracks и локальных SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
+| `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, курсоры | Переключение экранов и аудиосостояние |
 | `public/assets/*` | Визуальные ресурсы | Логику приложения |
-| `public/audio/*` | Готовые аудиоресурсы для браузера | UI-состояние |
-| `scripts/generate_menu_audio.py` | Повторяемая офлайн-генерация музыкального WAV и рунического SFX | Работа приложения в браузере |
+| `public/audio/*` | Локальные звуки кнопок | UI-состояние |
+| `docs/audio-credits.md` | Источники и лицензии внешней музыки | Запуск приложения |
 | `vite.config.ts` | Dev-сервер и разрешённый preview host | UI и игровой код |
 
 ## 3. Контракты между частями
@@ -94,6 +91,7 @@ menu | play | tests | settings
 musicVolume: number       // 0..100
 buttonSoundVolume: number // 0..100
 buttonSound: ButtonSound
+musicTrack: MusicTrack
 ```
 
 ### `ButtonSound`
@@ -101,6 +99,14 @@ buttonSound: ButtonSound
 ```text
 soft | arcane | stone | metal | rune
 ```
+
+### `MusicTrack`
+
+```text
+ourMountain | gameMenu | mystery
+```
+
+Музыкальные темы сейчас загружаются по внешним URL из `MUSIC_TRACKS`. Для добавления трека нужно обновить тип, label, URL и `docs/audio-credits.md`.
 
 Если добавляется новый вариант звука, его нужно одновременно добавить в четыре места:
 
@@ -158,6 +164,19 @@ change на select
   -> остановка старого активного SFX
 ```
 
+### Выбор музыки
+
+```text
+change на select
+  -> проверка MusicTrack
+  -> изменение settings.musicTrack
+  -> applySettings()
+  -> AudioManager.setSettings()
+  -> остановка текущей темы
+  -> создание нового HTMLAudioElement по внешнему URL
+  -> запуск выбранной темы после действия пользователя
+```
+
 ### Фон
 
 ```text
@@ -185,12 +204,12 @@ src/style.css
 | Меню не появляется | `#app`, `render('menu')`, ошибки в начале `main.ts` |
 | Фон исчез | URL `/assets/menu-fantasy-background.png`, `#background-layer`, `#background-overlay`, `z-index` |
 | Фон не двигается | `animation` в `#background-layer`, `@keyframes background-float`, трансформацию `scale/translate` |
-| Музыка не звучит | autoplay-блокировку, URL `/audio/menu-music.wav`, `musicVolume`, `startMusic()` |
+| Музыка не звучит | autoplay-блокировку, внешний URL из `MUSIC_TRACKS`, интернет, `musicVolume`, `startMusic()` |
 | Нет звука кнопок | выбранный `ButtonSound`, путь в `BUTTON_SOUND_FILES`, `buttonSoundVolume`, наличие WAV |
 | Смена звука даёт наложение/артефакт | `AudioManager.setSettings()`, `stopButtonSounds()`, повторное использование HTMLAudioElement |
 | Ползунок меняется визуально, но громкость нет | `data-setting`, `updateVolumeSetting()`, `AudioManager.applyVolumes()` |
 | Настройки выглядят неправильно | `.settings-card`, `.setting-range-row`, `.setting-select` и scrollbar в `src/style.css` |
-| WAV нужно пересоздать | запустить `python3 scripts/generate_menu_audio.py`, затем проверить файлы в `public/audio` |
+| Выбрана музыка, но ничего не играет | проверить URL трека, наличие интернета и разрешение autoplay |
 
 ## 6. Правила для дальнейшего расширения
 

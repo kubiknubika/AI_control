@@ -2,12 +2,13 @@ import './style.css';
 import {
   AudioManager,
   BUTTON_SOUND_LABELS,
+  MUSIC_TRACKS,
   type AudioSettings,
   type ButtonSound,
+  type MusicTrack,
 } from './audio';
 
 type Screen = 'menu' | 'play' | 'tests' | 'settings';
-
 type Settings = AudioSettings;
 
 const MIN_VOLUME = 0;
@@ -16,7 +17,8 @@ const MAX_VOLUME = 100;
 const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
   buttonSoundVolume: 62,
-  buttonSound: 'soft',
+  buttonSound: 'rune',
+  musicTrack: 'ourMountain',
 };
 
 const appElement = document.querySelector<HTMLDivElement>('#app');
@@ -52,6 +54,10 @@ function clampVolume(value: unknown): number {
 
 function isButtonSound(value: unknown): value is ButtonSound {
   return typeof value === 'string' && value in BUTTON_SOUND_LABELS;
+}
+
+function isMusicTrack(value: unknown): value is MusicTrack {
+  return typeof value === 'string' && value in MUSIC_TRACKS;
 }
 
 function applySettings(): void {
@@ -105,6 +111,13 @@ function renderSettings(): void {
     })
     .join('');
 
+  const musicOptions = Object.entries(MUSIC_TRACKS)
+    .map(([value, track]) => {
+      const selected = value === settings.musicTrack ? ' selected' : '';
+      return `<option value="${value}"${selected}>${track.label}</option>`;
+    })
+    .join('');
+
   app.innerHTML = `
     <main class="screen" aria-labelledby="settings-title">
       <section class="menu-card settings-card">
@@ -118,7 +131,7 @@ function renderSettings(): void {
                 <strong>Музыка</strong>
                 <small>Громкость фоновой музыки</small>
               </span>
-              <output id="music-volume-output" for="music-volume">${settings.musicVolume}%</output>
+              <output for="music-volume">${settings.musicVolume}%</output>
             </div>
             <input
               class="setting-range"
@@ -139,7 +152,7 @@ function renderSettings(): void {
                 <strong>Звуки</strong>
                 <small>Громкость звуков кнопок</small>
               </span>
-              <output id="button-sound-volume-output" for="button-sound-volume">${settings.buttonSoundVolume}%</output>
+              <output for="button-sound-volume">${settings.buttonSoundVolume}%</output>
             </div>
             <input
               class="setting-range"
@@ -154,16 +167,25 @@ function renderSettings(): void {
             />
           </div>
 
+          <label class="setting-row" for="music-track">
+            <span class="setting-copy">
+              <strong>Музыка меню</strong>
+              <small>Готовые human-made темы</small>
+            </span>
+            <select class="setting-select" id="music-track" data-setting="musicTrack">
+              ${musicOptions}
+            </select>
+          </label>
+
           <label class="setting-row" for="button-sound">
             <span class="setting-copy">
               <strong>Звук кнопок</strong>
-              <small>Выберите один из пяти вариантов</small>
+              <small>Пять вариантов интерфейсного SFX</small>
             </span>
             <select class="setting-select" id="button-sound" data-setting="buttonSound">
               ${soundOptions}
             </select>
           </label>
-
         </div>
 
         <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
@@ -226,13 +248,20 @@ app.addEventListener('input', (event: Event) => {
 app.addEventListener('change', (event: Event) => {
   const target = event.target;
 
-  if (target instanceof HTMLSelectElement && target.dataset.setting === 'buttonSound') {
-    if (!isButtonSound(target.value)) {
-      return;
-    }
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
 
+  if (target.dataset.setting === 'buttonSound' && isButtonSound(target.value)) {
     settings.buttonSound = target.value;
     applySettings();
+    return;
+  }
+
+  if (target.dataset.setting === 'musicTrack' && isMusicTrack(target.value)) {
+    settings.musicTrack = target.value;
+    applySettings();
+    audioManager.startMusic();
   }
 });
 
