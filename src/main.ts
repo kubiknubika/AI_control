@@ -46,6 +46,8 @@ const TEST2_STEP_DELAY = 320;
 const TEST2_ATTACK_WINDUP = 520;
 const TEST2_ATTACK_IMPACT_DELAY = 110;
 const TEST2_HEALTH_ANIMATION_DELAY = 360;
+const TEST2_COUNTER_ATTACK_DELAY = 720;
+const TEST2_NEXT_TURN_DELAY = 720;
 
 const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
@@ -1061,7 +1063,7 @@ async function test2Attack(attackerId: Test2Faction, windupDelay = TEST2_ATTACK_
     attacker.hasAttacked = true;
     test2ApplyDamage(attackerId);
     render('test2');
-    await wait(TEST2_HEALTH_ANIMATION_DELAY);
+    await wait(TEST2_COUNTER_ATTACK_DELAY);
 
     if (target.count > 0 && test2CanAttack(targetId)) {
       test2State.healthAnimation = null;
@@ -1186,6 +1188,9 @@ async function advanceTest2Turn(): Promise<void> {
 
     if (faction === 'demons') {
       test2State.aiBusy = true;
+      test2State.aiAnimation = null;
+      render('test2');
+      await wait(TEST2_NEXT_TURN_DELAY);
       test2State.aiAnimation = 'move';
       render('test2');
       await performTest2AiTurn();
