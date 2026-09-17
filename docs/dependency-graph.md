@@ -1,6 +1,6 @@
 # Карта зависимостей прототипа
 
-Документ нужен как карта для будущей диагностики багов. Пока приложение состоит только из меню и аудиосистемы; полноценного игрового ядра ещё нет.
+Документ нужен как карта для будущей диагностики багов. Сейчас приложение содержит главное меню, экран выбора сложности и тестовый бой 1 на 1; полноценного игрового ядра ещё нет.
 
 ## 1. Общий граф
 
@@ -18,12 +18,20 @@ flowchart TD
     placeholders[Заглушки\nИгра / Тесты]
     settingsScreen[Экран настроек]
     music[Our Mountain — looping MP3\nвнешний URL]
+    battleMusic[Preparing for Battle — looping MP3\nвнешний URL]
     soft[public/audio/button-soft.wav]
     arcane[public/audio/button-arcane.wav]
     stone[public/audio/button-stone.wav]
     metal[public/audio/button-metal.wav]
     rune[public/audio/button-rune.wav]
+    battleHit[public/audio/battle-hit.wav]
+    battleDouble[public/audio/battle-double.wav]
+    battleMagic[public/audio/battle-magic.wav]
+    battleItem[public/audio/battle-item.wav]
+    battleMiss[public/audio/battle-miss.wav]
     background[public/assets/menu-fantasy-background.png]
+    battleBackground[public/assets/battle-castle-corridor.png]
+    skeleton[public/assets/skeleton-warrior.png]
     cursorDefault[public/assets/cursor-default.svg]
     cursorPointer[public/assets/cursor-pointer.svg]
     credits[docs/audio-credits.md\nлицензии и источники]
@@ -42,20 +50,32 @@ flowchart TD
     settingsScreen --> settings
     settings --> audio
     audio --> music
+    audio --> battleMusic
     credits --> music
+    credits --> battleMusic
     audio --> soft
     audio --> arcane
     audio --> stone
     audio --> metal
     audio --> rune
+    audio --> battleHit
+    audio --> battleDouble
+    audio --> battleMagic
+    audio --> battleItem
+    audio --> battleMiss
     styles --> background
+    styles --> battleBackground
+    entry --> skeleton
     styles --> cursorDefault
     styles --> cursorPointer
     vite --> html
     vite --> entry
     vite --> styles
     vite --> background
+    vite --> battleBackground
+    vite --> skeleton
     vite --> music
+    vite --> battleMusic
 ```
 
 ## 2. Точки входа и ответственность файлов
@@ -64,10 +84,10 @@ flowchart TD
 |---|---|---|
 | `index.html` | HTML-точка входа и корневой `#app` | Игровые правила и аудиологику |
 | `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали аудиофайлов и CSS |
-| `src/audio.ts` | Загрузка выбранной внешней loop-музыки и локальных SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
+| `src/audio.ts` | Загрузка menu/battle loop-музыки и локальных UI/боевых SFX, громкость, запуск/остановка | Разметку экранов и CSS |
 | `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, курсоры | Переключение экранов и аудиосостояние |
 | `public/assets/*` | Визуальные ресурсы | Логику приложения |
-| `public/audio/*` | Локальные звуки кнопок | UI-состояние |
+| `public/audio/*` | Локальные звуки кнопок и боевые SFX | UI-состояние |
 | `docs/audio-credits.md` | Источники и лицензии внешней музыки | Запуск приложения |
 | `vite.config.ts` | Dev-сервер и разрешённый preview host | UI и игровой код |
 
@@ -151,6 +171,7 @@ change на select
   -> applySettings()
   -> AudioManager.setSettings()
   -> остановка старого активного SFX
+  -> проигрывание выбранного звука
 ```
 
 ### Выбор сложности
@@ -165,6 +186,19 @@ click на «Играть»
   -> сохранение выбранной сложности в памяти
   -> render('play')
 ```
+
+### Ход боя
+
+```text
+click на действие
+  -> проверка шанса попадания
+  -> изменение HP цели и запись цветного события в журнал
+  -> проигрывание battle SFX
+  -> если скелет жив, его ответная атака с шансом 95%
+  -> обновление красных HP-баров без прокрутки журнала
+```
+
+`Умение` и `Магия` открывают модальное окно. Двойной удар делает две отдельные атаки и получает перезарядку 5 ходов. Лечение восстанавливает 5 HP и получает перезарядку 5 ходов. Предмет использует одну лечебную траву и восстанавливает 3 HP.
 
 ### Фон
 
@@ -188,13 +222,15 @@ src/style.css
 | Меню не появляется | `#app`, `render('menu')`, ошибки в начале `main.ts` |
 | Фон исчез | URL `/assets/menu-fantasy-background.png`, `body::before`, `body::after`, `z-index` |
 | Фон не двигается | `animation` в `body::before`, `@keyframes background-float`, трансформацию `scale/translate` |
-| Музыка не звучит | autoplay-блокировку, `MENU_MUSIC_SOURCE`, интернет, `musicVolume`, `startMusic()` |
-| В конце музыки слышна пауза | используется ли loop-версия `Our-Mountain_v003_Looping.mp3` |
+| Музыка не звучит | autoplay-блокировку, `MENU_MUSIC_SOURCE` или `BATTLE_MUSIC_SOURCE`, интернет, `musicVolume` |
+| В конце музыки слышна пауза | используется ли loop-версия `Our-Mountain_v003_Looping.mp3` или loop-трек боя |
+| Бой не обновляется | `battleState`, `handleBattleAction()`, `enemyTurn()`, выбранный `data-battle-action` |
+| Нет боевого эффекта | соответствующий файл `battle-*.wav`, `playBattleSound()`, `buttonSoundVolume` |
+| Журнал боя прокручивается | `overflow: hidden` и `LOG_LIMIT` в `src/main.ts` |
 | Нет звука кнопок | выбранный `ButtonSound`, путь в `BUTTON_SOUND_FILES`, `buttonSoundVolume`, наличие WAV |
 | Смена звука даёт наложение/артефакт | `AudioManager.setSettings()`, `stopButtonSounds()`, повторное использование HTMLAudioElement |
 | Ползунок меняется визуально, но громкость нет | `data-setting`, `updateVolumeSetting()`, `AudioManager.applyVolumes()` |
 | Настройки выглядят неправильно | `.settings-card`, `.setting-range-row`, `.setting-select` и scrollbar в `src/style.css` |
-| Выбрана музыка, но ничего не играет | проверить URL трека, наличие интернета и разрешение autoplay |
 
 ## 6. Правила для дальнейшего расширения
 
