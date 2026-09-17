@@ -1,11 +1,11 @@
-export type ButtonSound = 'soft' | 'arcane' | 'stone' | 'metal' | 'chime';
+export type ButtonSound = 'soft' | 'arcane' | 'stone' | 'metal' | 'rune';
 
 export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
   soft: 'Мягкий',
   arcane: 'Магический',
   stone: 'Каменный',
   metal: 'Металлический',
-  chime: 'Колокольчик',
+  rune: 'Рунический',
 };
 
 export interface AudioSettings {
@@ -19,7 +19,7 @@ const BUTTON_SOUND_FILES: Record<ButtonSound, string> = {
   arcane: '/audio/button-arcane.wav',
   stone: '/audio/button-stone.wav',
   metal: '/audio/button-metal.wav',
-  chime: '/audio/button-chime.wav',
+  rune: '/audio/button-rune.wav',
 };
 
 const MAX_MIX_VOLUME = 0.62;
@@ -38,7 +38,7 @@ export class AudioManager {
       arcane: createAudio(BUTTON_SOUND_FILES.arcane),
       stone: createAudio(BUTTON_SOUND_FILES.stone),
       metal: createAudio(BUTTON_SOUND_FILES.metal),
-      chime: createAudio(BUTTON_SOUND_FILES.chime),
+      rune: createAudio(BUTTON_SOUND_FILES.rune),
     };
     this.settings = { ...settings };
     this.applyVolumes();

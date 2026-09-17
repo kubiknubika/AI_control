@@ -38,9 +38,6 @@ body::before {
   inset: -6%;
   background: url('/assets/menu-fantasy-background.png') center / cover no-repeat;
   transform: scale(1.08);
-}
-
-body.background-animation::before {
   animation: background-float 18s ease-in-out infinite alternate;
 }
 
@@ -167,7 +164,6 @@ h1 {
 }
 
 .menu-button:focus-visible,
-.setting-checkbox:focus-visible,
 .setting-range:focus-visible {
   outline: 2px solid #93c5fd;
   outline-offset: 3px;
@@ -233,13 +229,6 @@ h1 {
   color: #cbd5e1;
   font-size: 12px;
   line-height: 1.35;
-}
-
-.setting-checkbox {
-  width: 20px;
-  height: 20px;
-  accent-color: #60a5fa;
-  cursor: url('/assets/cursor-pointer.svg') 7 3, pointer;
 }
 
 .setting-select {

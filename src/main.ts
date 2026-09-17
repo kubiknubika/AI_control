@@ -8,9 +8,7 @@ import {
 
 type Screen = 'menu' | 'play' | 'tests' | 'settings';
 
-interface Settings extends AudioSettings {
-  backgroundAnimation: boolean;
-}
+type Settings = AudioSettings;
 
 const MIN_VOLUME = 0;
 const MAX_VOLUME = 100;
@@ -19,7 +17,6 @@ const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
   buttonSoundVolume: 62,
   buttonSound: 'soft',
-  backgroundAnimation: true,
 };
 
 const appElement = document.querySelector<HTMLDivElement>('#app');
@@ -58,7 +55,6 @@ function isButtonSound(value: unknown): value is ButtonSound {
 }
 
 function applySettings(): void {
-  document.body.classList.toggle('background-animation', settings.backgroundAnimation);
   audioManager.setSettings(settings);
 }
 
@@ -168,19 +164,6 @@ function renderSettings(): void {
             </select>
           </label>
 
-          <label class="setting-row" for="background-animation">
-            <span class="setting-copy">
-              <strong>Анимация фона</strong>
-              <small>Плавное движение изображения из стороны в сторону</small>
-            </span>
-            <input
-              class="setting-checkbox"
-              id="background-animation"
-              type="checkbox"
-              data-setting="backgroundAnimation"
-              ${settings.backgroundAnimation ? 'checked' : ''}
-            />
-          </label>
         </div>
 
         <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
@@ -242,12 +225,6 @@ app.addEventListener('input', (event: Event) => {
 
 app.addEventListener('change', (event: Event) => {
   const target = event.target;
-
-  if (target instanceof HTMLInputElement && target.dataset.setting === 'backgroundAnimation') {
-    settings.backgroundAnimation = target.checked;
-    applySettings();
-    return;
-  }
 
   if (target instanceof HTMLSelectElement && target.dataset.setting === 'buttonSound') {
     if (!isButtonSound(target.value)) {
