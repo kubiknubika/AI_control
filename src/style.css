@@ -1044,33 +1044,116 @@ h1 {
   fill: rgb(185 28 28 / 96%);
 }
 
-.test2-screen.is-ai-move .hex-svg-cell.is-demons .hex-svg-unit {
+.test2-screen.is-ai-move .hex-svg-cell.is-demons .hex-svg-model {
   animation: demon-step 300ms ease-in-out;
 }
 
-.test2-screen.is-ai-attack .hex-svg-cell.is-demons .hex-svg-unit {
-  animation: demon-strike 520ms ease-in-out;
+.test2-screen.is-ai-attack .hex-svg-cell.is-demons polygon {
+  animation: demon-attack-cell 520ms ease-out;
 }
 
-.hex-svg-unit circle {
-  fill: #1d4ed8;
+.test2-screen.is-ai-attack .hex-svg-cell.is-demons .hex-svg-model {
+  animation: demon-strike 520ms ease-out;
+}
+
+.hex-svg-model,
+.hex-svg-model * {
+  pointer-events: none;
+}
+
+.hex-svg-unit-shadow {
+  fill: rgb(0 0 0 / 42%);
+  pointer-events: none;
+}
+
+.hex-svg-knight-model .knight-cape {
+  fill: #172554;
+  stroke: #93c5fd;
+  stroke-width: 0.035;
+}
+
+.hex-svg-knight-model .knight-body,
+.hex-svg-knight-model .knight-helmet {
+  fill: #64748b;
   stroke: #dbeafe;
-  stroke-width: 0.08;
-  filter: drop-shadow(0 0.08px 0.14px rgb(0 0 0 / 60%));
+  stroke-width: 0.035;
 }
 
-.hex-svg-cell.is-demons .hex-svg-unit circle {
+.hex-svg-knight-model .knight-shield {
+  fill: #2563eb;
+  stroke: #bfdbfe;
+  stroke-width: 0.045;
+}
+
+.hex-svg-knight-model .knight-sword {
+  fill: none;
+  stroke: #f8fafc;
+  stroke-linecap: round;
+  stroke-width: 0.08;
+}
+
+.hex-svg-knight-model .knight-visor {
+  fill: #0f172a;
+  stroke: #e2e8f0;
+  stroke-width: 0.025;
+}
+
+.hex-svg-knight-model .knight-face {
+  fill: #fbbf24;
+}
+
+.hex-svg-demon-model .demon-wings,
+.hex-svg-demon-model .demon-claws,
+.hex-svg-demon-model .demon-horns {
+  fill: none;
+  stroke: #fca5a5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.09;
+}
+
+.hex-svg-demon-model .demon-wings {
+  fill: #450a0a;
+  stroke-width: 0.045;
+}
+
+.hex-svg-demon-model .demon-body,
+.hex-svg-demon-model .demon-head {
   fill: #991b1b;
   stroke: #fecaca;
+  stroke-width: 0.04;
 }
 
-.hex-svg-unit text {
-  fill: #eff6ff;
+.hex-svg-demon-model .demon-horns {
+  stroke: #fef3c7;
+}
+
+.hex-svg-demon-model .demon-eye {
+  fill: #fef08a;
+}
+
+.hex-svg-count {
+  pointer-events: none;
+}
+
+.hex-svg-count circle {
+  fill: #0f172a;
+  stroke: #f8fafc;
+  stroke-width: 0.045;
+}
+
+.hex-svg-count text {
+  fill: #fff;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.24px;
+  font-size: 0.17px;
   font-weight: 800;
   pointer-events: none;
   text-anchor: middle;
+}
+
+.hex-svg-cell:focus,
+.hex-svg-cell:focus-visible {
+  outline: none;
 }
 
 .hex-svg-tooltip {
@@ -1126,8 +1209,10 @@ h1 {
 
 .test2-action {
   display: grid;
-  gap: 3px;
-  min-height: 52px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
   padding: 9px 11px;
   border: 1px solid rgb(96 165 250 / 56%);
   border-radius: 8px;
@@ -1142,19 +1227,42 @@ h1 {
   background: rgb(37 99 235 / 88%);
 }
 
+.test2-action-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(253 186 116 / 60%);
+  border-radius: 9px;
+  background: rgb(127 29 29 / 35%);
+}
+
+.test2-action-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.test2-action-icon path:first-child {
+  fill: #fb7185;
+  stroke: #ffe4e6;
+  stroke-width: 1.5;
+}
+
+.test2-action-icon path:last-child {
+  fill: none;
+  stroke: #fff7ed;
+  stroke-linecap: round;
+  stroke-width: 2.4;
+}
+
+.test2-action-copy {
+  display: grid;
+  gap: 3px;
+}
+
 .test2-action small {
   color: #bfdbfe;
   font-size: 11px;
-}
-
-.test2-action-attack {
-  border-color: rgb(248 113 113 / 65%);
-  background: rgb(127 29 29 / 78%);
-}
-
-.test2-action-attack:hover:not(:disabled) {
-  border-color: #fecaca;
-  background: rgb(185 28 28 / 88%);
 }
 
 .test2-action:disabled {
@@ -1212,22 +1320,37 @@ h1 {
 @keyframes demon-step {
   0%,
   100% {
-    transform: translateX(0);
+    transform: translateY(0);
   }
 
   50% {
-    transform: translateX(-0.12px) scale(1.08);
+    transform: translateY(-0.08px);
   }
 }
 
 @keyframes demon-strike {
   0%,
   100% {
-    transform: translateX(0);
+    transform: scale(1);
+    transform-origin: center;
+    transform-box: fill-box;
   }
 
-  45% {
-    transform: translateX(-0.28px) scale(1.12);
+  35% {
+    transform: scale(1.08);
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+}
+
+@keyframes demon-attack-cell {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+
+  35% {
+    filter: brightness(1.42) drop-shadow(0 0 0.12px rgb(254 202 202 / 90%));
   }
 }
 

@@ -408,10 +408,33 @@ function renderTest2(): void {
         const angle = Math.PI / 6 + (Math.PI / 3) * index;
         return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
       }).join(' ');
+      const modelMarkup = stack?.id === 'knights'
+        ? `<g class="hex-svg-model hex-svg-knight-model" aria-hidden="true">
+            <path class="knight-cape" d="M-.38 .54Q-.58 .25-.4-.08L-.18-.3 .28-.2 .43 .56Z"></path>
+            <path class="knight-body" d="M-.27-.04Q-.32 .25-.24 .58H.24Q.32 .25 .27-.04Z"></path>
+            <path class="knight-shield" d="M-.47-.08Q-.7 0-.64 .3Q-.58 .57-.4 .66Q-.22 .57-.2 .3V.01Z"></path>
+            <path class="knight-sword" d="M.35 .36L.7-.57M.24 .18L.46 .3M.56-.62L.79-.5"></path>
+            <path class="knight-helmet" d="M-.28-.47Q0-.75 .28-.47L.23-.2H-.23Z"></path>
+            <path class="knight-visor" d="M-.23-.4H.25V-.3H-.22Z"></path>
+            <circle class="knight-face" cx=".05" cy="-.29" r=".07"></circle>
+          </g>`
+        : `<g class="hex-svg-model hex-svg-demon-model" aria-hidden="true">
+            <path class="demon-wings" d="M-.2-.08Q-.72-.5-.73 .35L-.28 .2M.2-.08Q.72-.5 .73 .35L.28 .2"></path>
+            <path class="demon-body" d="M-.28-.02Q-.35 .28-.22 .61H.22Q.35 .28 .28-.02Q0-.16-.28-.02Z"></path>
+            <path class="demon-head" d="M-.27-.42Q0-.67 .27-.42L.22-.16Q0-.05-.22-.16Z"></path>
+            <path class="demon-horns" d="M-.2-.43Q-.38-.7-.42-.48M.2-.43Q.38-.7 .42-.48"></path>
+            <circle class="demon-eye" cx="-.1" cy="-.31" r=".035"></circle>
+            <circle class="demon-eye" cx=".1" cy="-.31" r=".035"></circle>
+            <path class="demon-claws" d="M-.27 .05L-.58 .35M.27 .05L.58 .35"></path>
+          </g>`;
       const unitMarkup = stack
         ? `<g class="hex-svg-unit" data-test2-unit="${stack.id}">
-            <circle cx="${centerX}" cy="${centerY}" r="0.5"></circle>
-            <text x="${centerX}" y="${centerY + 0.08}">×${stack.count}</text>
+            <ellipse class="hex-svg-unit-shadow" cx="${centerX}" cy="${centerY + 0.66}" rx="0.42" ry="0.1"></ellipse>
+            <g transform="translate(${centerX} ${centerY})">${modelMarkup}</g>
+            <g class="hex-svg-count" transform="translate(${centerX + 0.57} ${centerY - 0.55})" aria-label="${stack.count} бойцов">
+              <circle r="0.23"></circle>
+              <text x="0" y="0.06">${stack.count}</text>
+            </g>
           </g>`
         : '';
       const tooltipMarkup = stack
@@ -425,7 +448,7 @@ function renderTest2(): void {
           </g>`
         : '';
 
-      return `<g class="${classes}" data-hex-x="${x}" data-hex-y="${y}" tabindex="0" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
+      return `<g class="${classes}" data-hex-x="${x}" data-hex-y="${y}" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
         <polygon points="${points}"></polygon>
         ${unitMarkup}
         ${tooltipMarkup}
@@ -491,18 +514,18 @@ function renderTest2(): void {
                 <span>Очки действий</span>
                 <strong>${currentStack.actionPoints}/${currentStack.maxActionPoints}</strong>
               </div>
-              <div class="test2-action test2-action-attack test2-action-hint">
-                <strong>Атаковать</strong>
-                <small>Нажмите на Демонов · ОД на подход + удар</small>
-              </div>
               <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
-                <strong>Исцелить отряд</strong>
-                <small>10 HP × число рыцарей · 1 ОД · 1 раз за бой</small>
+                <span class="test2-action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 32 32" focusable="false">
+                    <path d="M16 27.2 5.7 17.4C1.4 13.3 4.1 6 10 6c2.4 0 4.6 1.2 6 3.1C17.4 7.2 19.6 6 22 6c5.9 0 8.6 7.3 4.3 11.4Z"></path>
+                    <path d="M16 11v8M12 15h8"></path>
+                  </svg>
+                </span>
+                <span class="test2-action-copy">
+                  <strong>Исцелить отряд</strong>
+                  <small>10 HP × число рыцарей · 1 ОД · ${test2State.stacks.knights.abilityUsed ? '0/1' : '1/1'}</small>
+                </span>
               </button>
-              <div class="test2-action test2-action-move test2-action-hint">
-                <strong>Перемещение</strong>
-                <small>Выберите подсвеченную клетку · до 4 клеток</small>
-              </div>
             </section>
 
             <section class="test2-log-panel" aria-labelledby="test2-log-title">
