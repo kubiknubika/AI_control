@@ -1,11 +1,9 @@
 # Музыка меню
 
-В настройках можно переключаться между готовыми human-made треками. Музыка загружается по внешней ссылке, поэтому для её прослушивания нужен интернет.
+В меню используется один выбранный human-made трек — **Our Mountain — RPG**. Он загружается по внешней ссылке, поэтому для его прослушивания нужен интернет.
 
-## Доступные темы
+- **Our Mountain — RPG** — Eric Matyas / Soundimage.org.
+- Страница источника и атрибуции: https://soundimage.org/fantasywonder/
+- Используемая loop-версия: https://soundimage.org/wp-content/uploads/2018/10/Our-Mountain_v003_Looping.mp3
 
-- **Our Mountain — RPG** — Eric Matyas / Soundimage.org. Бесплатное использование с атрибуцией: https://soundimage.org/fantasy-1-ogg/
-- **Game Menu — Mystery** — Eric Matyas / Soundimage.org. Бесплатное использование с атрибуцией: https://soundimage.org/fantasy-1-ogg/
-- **Mystery Exploration — CC0** — PolygonDan / OpenGameArt.org. CC0: https://opengameart.org/content/cc0-mystery
-
-Ссылки на источники также зафиксированы в `src/audio.ts`, рядом с описанием каждого трека.
+На странице Soundimage отдельно указаны looping и non-looping версии трека. В приложении используется looping-версия, чтобы при повторе не было длинной паузы в конце.

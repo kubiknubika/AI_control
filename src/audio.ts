@@ -1,5 +1,4 @@
 export type ButtonSound = 'soft' | 'arcane' | 'stone' | 'metal' | 'rune';
-export type MusicTrack = 'ourMountain' | 'gameMenu' | 'mystery';
 
 export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
   soft: 'Мягкий',
@@ -9,36 +8,14 @@ export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
   rune: 'Рунический',
 };
 
-export interface MusicTrackInfo {
-  label: string;
-  source: string;
-  credit: string;
-}
-
-export const MUSIC_TRACKS: Record<MusicTrack, MusicTrackInfo> = {
-  ourMountain: {
-    label: 'Our Mountain — RPG',
-    source: 'https://soundimage.org/wp-content/uploads/2024/01/Our-Mountain_v003.wav',
-    credit: 'Eric Matyas / Soundimage.org',
-  },
-  gameMenu: {
-    label: 'Game Menu — Mystery',
-    source: 'https://soundimage.org/wp-content/uploads/2024/01/Game-Menu.wav',
-    credit: 'Eric Matyas / Soundimage.org',
-  },
-  mystery: {
-    label: 'Mystery Exploration — CC0',
-    source: 'https://opengameart.org/sites/default/files/mystery%20exploration.mp3',
-    credit: 'PolygonDan / OpenGameArt.org',
-  },
-};
-
 export interface AudioSettings {
   musicVolume: number;
   buttonSoundVolume: number;
   buttonSound: ButtonSound;
-  musicTrack: MusicTrack;
 }
+
+export const MENU_MUSIC_SOURCE =
+  'https://soundimage.org/wp-content/uploads/2018/10/Our-Mountain_v003_Looping.mp3';
 
 const BUTTON_SOUND_FILES: Record<ButtonSound, string> = {
   soft: '/audio/button-soft.wav',
@@ -51,13 +28,13 @@ const BUTTON_SOUND_FILES: Record<ButtonSound, string> = {
 const MAX_MIX_VOLUME = 0.62;
 
 export class AudioManager {
-  private music: HTMLAudioElement;
+  private readonly music: HTMLAudioElement;
   private readonly buttonSounds: Record<ButtonSound, HTMLAudioElement>;
   private settings: AudioSettings;
 
   public constructor(settings: AudioSettings) {
     this.settings = { ...settings };
-    this.music = createMusic(settings.musicTrack);
+    this.music = createMusic();
     this.buttonSounds = {
       soft: createAudio(BUTTON_SOUND_FILES.soft),
       arcane: createAudio(BUTTON_SOUND_FILES.arcane),
@@ -69,23 +46,13 @@ export class AudioManager {
   }
 
   public setSettings(settings: AudioSettings): void {
-    const trackChanged = this.settings.musicTrack !== settings.musicTrack;
     const soundChanged = this.settings.buttonSound !== settings.buttonSound;
-    const wasPlaying = !this.music.paused;
 
     this.settings = { ...settings };
-
-    if (trackChanged) {
-      this.stopMusic();
-      this.music = createMusic(settings.musicTrack);
-    }
-
     this.applyVolumes();
 
     if (this.settings.musicVolume <= 0) {
       this.stopMusic();
-    } else if (trackChanged && wasPlaying) {
-      this.startMusic();
     }
 
     if (soundChanged) {
@@ -140,9 +107,9 @@ function createAudio(source: string): HTMLAudioElement {
   return audio;
 }
 
-function createMusic(track: MusicTrack): HTMLAudioElement {
-  const audio = new Audio(MUSIC_TRACKS[track].source);
+function createMusic(): HTMLAudioElement {
+  const audio = new Audio(MENU_MUSIC_SOURCE);
   audio.loop = true;
-  audio.preload = 'metadata';
+  audio.preload = 'auto';
   return audio;
 }

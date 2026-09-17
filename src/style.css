@@ -110,10 +110,48 @@ h1 {
   text-align: center;
 }
 
-.menu-actions {
+.menu-actions,
+.difficulty-list {
   display: grid;
   gap: 12px;
   margin-top: 32px;
+}
+
+.difficulty-option {
+  display: grid;
+  gap: 5px;
+  min-height: 68px;
+  padding: 13px 16px;
+  border: 1px solid rgb(147 197 253 / 60%);
+  border-radius: 10px;
+  color: #eff6ff;
+  background: rgb(30 64 175 / 66%);
+  cursor: url('/assets/cursor-pointer.svg') 7 3, pointer;
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.difficulty-option:hover {
+  border-color: #dbeafe;
+  background: rgb(37 99 235 / 88%);
+}
+
+.difficulty-option:active {
+  transform: translateY(1px);
+}
+
+.difficulty-option:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.difficulty-option strong {
+  font-size: 16px;
+}
+
+.difficulty-option small {
+  color: #dbeafe;
+  font-size: 13px;
 }
 
 .menu-button {

@@ -2,13 +2,12 @@ import './style.css';
 import {
   AudioManager,
   BUTTON_SOUND_LABELS,
-  MUSIC_TRACKS,
   type AudioSettings,
   type ButtonSound,
-  type MusicTrack,
 } from './audio';
 
-type Screen = 'menu' | 'play' | 'tests' | 'settings';
+type Screen = 'menu' | 'difficulty' | 'play' | 'tests' | 'settings';
+type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
 type Settings = AudioSettings;
 
 const MIN_VOLUME = 0;
@@ -18,7 +17,6 @@ const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
   buttonSoundVolume: 62,
   buttonSound: 'rune',
-  musicTrack: 'ourMountain',
 };
 
 const appElement = document.querySelector<HTMLDivElement>('#app');
@@ -31,16 +29,26 @@ const app = appElement;
 const settings: Settings = { ...DEFAULT_SETTINGS };
 const audioManager = new AudioManager(settings);
 
-const placeholderScreens: Record<Exclude<Screen, 'menu' | 'settings'>, { title: string; text: string }> = {
-  play: {
-    title: 'Игра',
-    text: 'Игровой экран пока не добавлен.',
+const difficultyOptions: Record<Difficulty, { label: string; description: string }> = {
+  easy: {
+    label: 'Легкий',
+    description: 'Враги слабее в 2 раза',
   },
-  tests: {
-    title: 'Тесты',
-    text: 'Раздел тестов пока пуст.',
+  normal: {
+    label: 'Средний',
+    description: 'Базовый вариант',
+  },
+  hard: {
+    label: 'Тяжелый',
+    description: 'Враги сильнее в 2 раза',
+  },
+  impossible: {
+    label: 'Невозможный',
+    description: 'Враги сильнее в 4 раза',
   },
 };
+
+let selectedDifficulty: Difficulty | null = null;
 
 function clampVolume(value: unknown): number {
   const numericValue = typeof value === 'number' ? value : Number(value);
@@ -56,8 +64,8 @@ function isButtonSound(value: unknown): value is ButtonSound {
   return typeof value === 'string' && value in BUTTON_SOUND_LABELS;
 }
 
-function isMusicTrack(value: unknown): value is MusicTrack {
-  return typeof value === 'string' && value in MUSIC_TRACKS;
+function isDifficulty(value: unknown): value is Difficulty {
+  return typeof value === 'string' && value in difficultyOptions;
 }
 
 function applySettings(): void {
@@ -72,7 +80,7 @@ function render(screen: Screen): void {
           <p class="eyebrow">Прототип</p>
           <h1 id="menu-title">Главное меню</h1>
           <nav class="menu-actions" aria-label="Основные разделы">
-            <button class="menu-button" type="button" data-screen="play">Играть</button>
+            <button class="menu-button" type="button" data-screen="difficulty">Играть</button>
             <button class="menu-button" type="button" data-screen="tests">Тесты</button>
             <button class="menu-button" type="button" data-screen="settings">Настройки</button>
           </nav>
@@ -87,14 +95,69 @@ function render(screen: Screen): void {
     return;
   }
 
-  const placeholder = placeholderScreens[screen];
+  if (screen === 'difficulty') {
+    renderDifficulty();
+    return;
+  }
+
+  if (screen === 'play') {
+    renderPlay();
+    return;
+  }
 
   app.innerHTML = `
     <main class="screen" aria-labelledby="placeholder-title">
       <section class="menu-card placeholder-card">
         <p class="eyebrow">Прототип</p>
-        <h1 id="placeholder-title">${placeholder.title}</h1>
-        <p class="placeholder-text">${placeholder.text}</p>
+        <h1 id="placeholder-title">Тесты</h1>
+        <p class="placeholder-text">Раздел тестов пока пуст.</p>
+        <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
+          В главное меню
+        </button>
+      </section>
+    </main>
+  `;
+}
+
+function renderDifficulty(): void {
+  const options = Object.entries(difficultyOptions)
+    .map(([value, option]) => `
+      <button class="difficulty-option" type="button" data-difficulty="${value}">
+        <strong>${option.label}</strong>
+        <small>${option.description}</small>
+      </button>
+    `)
+    .join('');
+
+  app.innerHTML = `
+    <main class="screen" aria-labelledby="difficulty-title">
+      <section class="menu-card difficulty-card">
+        <p class="eyebrow">Новая игра</p>
+        <h1 id="difficulty-title">Сложность</h1>
+        <div class="difficulty-list" aria-label="Выбор уровня сложности">
+          ${options}
+        </div>
+        <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
+          В главное меню
+        </button>
+      </section>
+    </main>
+  `;
+}
+
+function renderPlay(): void {
+  const selected = selectedDifficulty ? difficultyOptions[selectedDifficulty] : null;
+  const difficultyText = selected
+    ? `Сложность: ${selected.label}. ${selected.description}.`
+    : 'Сложность ещё не выбрана.';
+
+  app.innerHTML = `
+    <main class="screen" aria-labelledby="play-title">
+      <section class="menu-card placeholder-card">
+        <p class="eyebrow">Прототип</p>
+        <h1 id="play-title">Игра</h1>
+        <p class="placeholder-text">${difficultyText}</p>
+        <p class="placeholder-text">Игровой экран пока не добавлен.</p>
         <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
           В главное меню
         </button>
@@ -108,13 +171,6 @@ function renderSettings(): void {
     .map(([value, label]) => {
       const selected = value === settings.buttonSound ? ' selected' : '';
       return `<option value="${value}"${selected}>${label}</option>`;
-    })
-    .join('');
-
-  const musicOptions = Object.entries(MUSIC_TRACKS)
-    .map(([value, track]) => {
-      const selected = value === settings.musicTrack ? ' selected' : '';
-      return `<option value="${value}"${selected}>${track.label}</option>`;
     })
     .join('');
 
@@ -166,16 +222,6 @@ function renderSettings(): void {
               aria-label="Громкость звуков кнопок"
             />
           </div>
-
-          <label class="setting-row" for="music-track">
-            <span class="setting-copy">
-              <strong>Музыка меню</strong>
-              <small>Готовые human-made темы</small>
-            </span>
-            <select class="setting-select" id="music-track" data-setting="musicTrack">
-              ${musicOptions}
-            </select>
-          </label>
 
           <label class="setting-row" for="button-sound">
             <span class="setting-copy">
@@ -230,6 +276,12 @@ app.addEventListener('click', (event: MouseEvent) => {
   audioManager.startMusic();
   audioManager.playButtonSound();
 
+  if (isDifficulty(target.dataset.difficulty)) {
+    selectedDifficulty = target.dataset.difficulty;
+    render('play');
+    return;
+  }
+
   const nextScreen = target.dataset.screen as Screen | undefined;
 
   if (nextScreen) {
@@ -256,12 +308,6 @@ app.addEventListener('change', (event: Event) => {
     settings.buttonSound = target.value;
     applySettings();
     return;
-  }
-
-  if (target.dataset.setting === 'musicTrack' && isMusicTrack(target.value)) {
-    settings.musicTrack = target.value;
-    applySettings();
-    audioManager.startMusic();
   }
 });
 

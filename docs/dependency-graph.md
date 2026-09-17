@@ -12,11 +12,12 @@ flowchart TD
     styles[src/style.css\nфон, анимация, меню, настройки]
     audio[src/audio.ts\nAudioManager]
     settings[Состояние настроек\nAudioSettings]
-    screen[Screen\nmenu | play | tests | settings]
+    screen[Screen\nmenu | difficulty | play | tests | settings]
     menu[Главное меню]
+    difficultyScreen[Выбор сложности]
     placeholders[Заглушки\nИгра / Тесты]
     settingsScreen[Экран настроек]
-    music[Внешние human-made music sources\nMUSIC_TRACKS]
+    music[Our Mountain — looping MP3\nвнешний URL]
     soft[public/audio/button-soft.wav]
     arcane[public/audio/button-arcane.wav]
     stone[public/audio/button-stone.wav]
@@ -35,6 +36,7 @@ flowchart TD
     entry --> screen
     entry --> settings
     screen --> menu
+    screen --> difficultyScreen
     screen --> placeholders
     screen --> settingsScreen
     settingsScreen --> settings
@@ -62,7 +64,7 @@ flowchart TD
 |---|---|---|
 | `index.html` | HTML-точка входа и корневой `#app` | Игровые правила и аудиологику |
 | `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали аудиофайлов и CSS |
-| `src/audio.ts` | Загрузка внешних music tracks и локальных SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
+| `src/audio.ts` | Загрузка выбранной внешней loop-музыки и локальных SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
 | `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, курсоры | Переключение экранов и аудиосостояние |
 | `public/assets/*` | Визуальные ресурсы | Логику приложения |
 | `public/audio/*` | Локальные звуки кнопок | UI-состояние |
@@ -74,7 +76,7 @@ flowchart TD
 ### `Screen`
 
 ```text
-menu | play | tests | settings
+menu | difficulty | play | tests | settings
 ```
 
 `render(screen)` полностью заменяет содержимое `#app`. Поэтому при добавлении нового экрана нужно помнить, что DOM-элементы предыдущего экрана уничтожаются.
@@ -85,7 +87,6 @@ menu | play | tests | settings
 musicVolume: number       // 0..100
 buttonSoundVolume: number // 0..100
 buttonSound: ButtonSound
-musicTrack: MusicTrack
 ```
 
 ### `ButtonSound`
@@ -94,13 +95,7 @@ musicTrack: MusicTrack
 soft | arcane | stone | metal | rune
 ```
 
-### `MusicTrack`
-
-```text
-ourMountain | gameMenu | mystery
-```
-
-Музыкальные темы сейчас загружаются по внешним URL из `MUSIC_TRACKS`. Для добавления трека нужно обновить тип, label, URL и `docs/audio-credits.md`.
+Музыка меню фиксирована на выбранной loop-версии `Our Mountain` из `MENU_MUSIC_SOURCE`. Выбор темы в настройках отсутствует.
 
 Если добавляется новый вариант звука, его нужно одновременно добавить в четыре места:
 
@@ -158,17 +153,17 @@ change на select
   -> остановка старого активного SFX
 ```
 
-### Выбор музыки
+### Выбор сложности
 
 ```text
-change на select
-  -> проверка MusicTrack
-  -> изменение settings.musicTrack
-  -> applySettings()
-  -> AudioManager.setSettings()
-  -> остановка текущей темы
-  -> создание нового HTMLAudioElement по внешнему URL
-  -> запуск выбранной темы после действия пользователя
+click на «Играть»
+  -> AudioManager.startMusic()
+  -> AudioManager.playButtonSound()
+  -> render('difficulty')
+  -> отображаются четыре варианта сложности
+  -> click на вариант
+  -> сохранение выбранной сложности в памяти
+  -> render('play')
 ```
 
 ### Фон
@@ -193,7 +188,8 @@ src/style.css
 | Меню не появляется | `#app`, `render('menu')`, ошибки в начале `main.ts` |
 | Фон исчез | URL `/assets/menu-fantasy-background.png`, `body::before`, `body::after`, `z-index` |
 | Фон не двигается | `animation` в `body::before`, `@keyframes background-float`, трансформацию `scale/translate` |
-| Музыка не звучит | autoplay-блокировку, внешний URL из `MUSIC_TRACKS`, интернет, `musicVolume`, `startMusic()` |
+| Музыка не звучит | autoplay-блокировку, `MENU_MUSIC_SOURCE`, интернет, `musicVolume`, `startMusic()` |
+| В конце музыки слышна пауза | используется ли loop-версия `Our-Mountain_v003_Looping.mp3` |
 | Нет звука кнопок | выбранный `ButtonSound`, путь в `BUTTON_SOUND_FILES`, `buttonSoundVolume`, наличие WAV |
 | Смена звука даёт наложение/артефакт | `AudioManager.setSettings()`, `stopButtonSounds()`, повторное использование HTMLAudioElement |
 | Ползунок меняется визуально, но громкость нет | `data-setting`, `updateVolumeSetting()`, `AudioManager.applyVolumes()` |
