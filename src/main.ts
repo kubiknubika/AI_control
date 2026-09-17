@@ -9,6 +9,7 @@ import {
 type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'test2' | 'settings';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
 type Test2Faction = 'knights' | 'demons';
+type Test2AttackMode = 'melee' | 'range';
 type BattleMenu = 'skill' | 'magic' | null;
 type BattleResult = 'win' | 'lose' | null;
 type BattleAnimation =
@@ -36,6 +37,12 @@ const LOG_LIMIT = 8;
 const TEST2_WIDTH = 12;
 const TEST2_HEIGHT = 6;
 const HIT_CHANCE = 0.95;
+const TEST2_MELEE_RANGE = 1;
+const TEST2_RANGE_ATTACK_DISTANCE = 3;
+const TEST2_HEAL_PER_KNIGHT = 10;
+const TEST2_XP_PER_DEMON = 25;
+const TEST2_GOLD_PER_DEMON = 12;
+const TEST2_STEP_DELAY = 320;
 
 const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
@@ -97,12 +104,26 @@ interface Test2Stack {
   damage: number;
   defense: number;
   initiative: number;
+  attackMode: Test2AttackMode;
   maxActionPoints: number;
   actionPoints: number;
   x: number;
   y: number;
   hasAttacked: boolean;
   abilityUsed: boolean;
+}
+
+interface Test2Summary {
+  knightsLost: number;
+  demonsKilled: number;
+  experience: number;
+  gold: number;
+}
+
+interface Test2DeathAnimation {
+  faction: Test2Faction;
+  x: number;
+  y: number;
 }
 
 interface Test2State {
@@ -114,6 +135,10 @@ interface Test2State {
   result: 'win' | 'lose' | null;
   aiBusy: boolean;
   aiAnimation: 'move' | 'attack' | null;
+  playerBusy: boolean;
+  playerAnimation: 'move' | 'attack' | null;
+  deathAnimation: Test2DeathAnimation | null;
+  summary: Test2Summary | null;
   log: string[];
 }
 
@@ -181,6 +206,7 @@ function createTest2State(): Test2State {
     damage: 10,
     defense: 3,
     initiative: 5,
+    attackMode: 'melee',
     maxActionPoints: 4,
     actionPoints: 4,
     x: 1,
@@ -200,6 +226,7 @@ function createTest2State(): Test2State {
     damage: 15,
     defense: 6,
     initiative: 4,
+    attackMode: 'melee',
     maxActionPoints: 4,
     actionPoints: 0,
     x: 10,
@@ -220,6 +247,10 @@ function createTest2State(): Test2State {
     result: null,
     aiBusy: false,
     aiAnimation: null,
+    playerBusy: false,
+    playerAnimation: null,
+    deathAnimation: null,
+    summary: null,
     log: [
       `Инициатива: Рыцари ${knights.initiative}, Демоны ${demons.initiative}.`,
       'Рыцари ходят первыми. Выберите клетку или действие.',
@@ -381,7 +412,8 @@ function renderTest2(): void {
     for (let y = 0; y < TEST2_HEIGHT; y += 1) {
       for (let x = 0; x < TEST2_WIDTH; x += 1) {
         const occupant = test2StackAt(x, y);
-        if (!occupant && test2Distance(selectedStack.x, selectedStack.y, x, y) <= selectedStack.actionPoints) {
+        const path = !occupant ? test2FindPath(selectedStack.x, selectedStack.y, x, y) : null;
+        if (path && path.length > 0 && path.length <= selectedStack.actionPoints) {
           reachableCells.add(test2HexKey(x, y));
         }
       }
@@ -393,7 +425,12 @@ function renderTest2(): void {
     const viewBoxWidth = hexWidth * (TEST2_WIDTH + 0.5);
     const viewBoxHeight = 1.5 * (TEST2_HEIGHT - 1) + 2;
     const cells = Array.from({ length: TEST2_HEIGHT }, (_, y) => Array.from({ length: TEST2_WIDTH }, (_, x) => {
-      const stack = test2StackAt(x, y);
+      const liveStack = test2StackAt(x, y);
+      const deathAnimation = test2State.deathAnimation?.x === x && test2State.deathAnimation.y === y
+        ? test2State.deathAnimation
+        : null;
+      const stack = liveStack ?? (deathAnimation ? test2State.stacks[deathAnimation.faction] : null);
+      const isDeath = Boolean(deathAnimation);
       const cellKey = test2HexKey(x, y);
       const classes = [
         'hex-svg-cell',
@@ -401,6 +438,7 @@ function renderTest2(): void {
         stack && stack.id === 'knights' ? 'is-knights' : '',
         stack && stack.id === 'demons' ? 'is-demons' : '',
         stack && test2State.selected === stack.id ? 'is-selected' : '',
+        isDeath ? 'is-death' : '',
       ].filter(Boolean).join(' ');
       const centerX = hexWidth / 2 + x * hexWidth + (y % 2 === 1 ? hexWidth / 2 : 0);
       const centerY = 1 + y * 1.5;
@@ -427,24 +465,41 @@ function renderTest2(): void {
             <circle class="demon-eye" cx=".1" cy="-.31" r=".035"></circle>
             <path class="demon-claws" d="M-.27 .05L-.58 .35M.27 .05L.58 .35"></path>
           </g>`;
+      const formationCount = stack
+        ? Math.min(Math.max(stack.count, 1), test2FormationRows(Math.max(stack.count, 1)) * 2)
+        : 0;
+      const formationRows = stack ? test2FormationRows(Math.max(stack.count, 1)) : 1;
+      const formationColumns = Math.max(1, Math.ceil(formationCount / formationRows));
+      const formationScale = test2FormationScale();
+      const modelFormationMarkup = stack
+        ? Array.from({ length: formationCount }, (_, index) => {
+          const row = Math.floor(index / formationColumns);
+          const column = index % formationColumns;
+          const offsetX = (column - (formationColumns - 1) / 2) * 0.42;
+          const offsetY = (row - (formationRows - 1) / 2) * 0.34;
+          return `<g transform="translate(${offsetX.toFixed(3)} ${offsetY.toFixed(3)}) scale(${formationScale})">${modelMarkup}</g>`;
+        }).join('')
+        : '';
+      const countMarkup = !isDeath && stack
+        ? `<g class="hex-svg-count" transform="translate(${centerX + 0.57} ${centerY - 0.55})" aria-label="${stack.count} бойцов">
+            <circle r="0.23"></circle>
+            <text x="0" y="0.06">${stack.count}</text>
+          </g>`
+        : '';
       const unitMarkup = stack
         ? `<g class="hex-svg-unit" data-test2-unit="${stack.id}">
             <ellipse class="hex-svg-unit-shadow" cx="${centerX}" cy="${centerY + 0.66}" rx="0.42" ry="0.1"></ellipse>
-            <g transform="translate(${centerX} ${centerY})">${modelMarkup}</g>
-            <g class="hex-svg-count" transform="translate(${centerX + 0.57} ${centerY - 0.55})" aria-label="${stack.count} бойцов">
-              <circle r="0.23"></circle>
-              <text x="0" y="0.06">${stack.count}</text>
-            </g>
+            <g transform="translate(${centerX} ${centerY})">${modelFormationMarkup}</g>
+            ${countMarkup}
           </g>`
         : '';
-      const tooltipMarkup = stack
+      const tooltipMarkup = stack && !isDeath
         ? `<g class="hex-svg-tooltip" transform="translate(${Math.max(0, Math.min(viewBoxWidth - 5.9, centerX - 2.95))},0.12)">
-            <rect width="5.9" height="2.15" rx="0.12"></rect>
+            <rect width="5.9" height="1.78" rx="0.12"></rect>
             <text class="tooltip-title" x="0.2" y="0.38">${stack.label} ×${stack.count}</text>
             <text x="0.2" y="0.78">HP: ${Math.round(stack.health)}/${stack.maxHealth} · боец: ${stack.unitHealth}</text>
             <text x="0.2" y="1.16">Урон: ${stack.damage} · Защита: ${stack.defense}</text>
             <text x="0.2" y="1.54">Инициатива: ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</text>
-            <text x="0.2" y="1.92">Наведите для характеристик отряда</text>
           </g>`
         : '';
 
@@ -467,16 +522,39 @@ function renderTest2(): void {
     const current = index === test2State.scheduleIndex ? ' is-current' : '';
     return `<span class="test2-order-item ${faction}${current}">${faction === 'knights' ? 'Рыцари' : 'Демоны'} ${ordinal}</span>`;
   }).join('');
-  const actionDisabled = currentFaction !== 'knights' || test2State.result !== null || test2State.aiBusy ? ' disabled' : '';
-  const aiAnimationClass = test2State.aiBusy && test2State.aiAnimation ? ` is-ai-${test2State.aiAnimation}` : '';
-  const healDisabled = actionDisabled || currentStack.abilityUsed || currentStack.actionPoints < 1 ? ' disabled' : '';
-  const resultMarkup = test2State.result
-    ? `<div class="test2-result ${test2State.result}">${test2State.result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.'}</div>`
+  const actionDisabled = currentFaction !== 'knights'
+    || test2State.result !== null
+    || test2State.aiBusy
+    || test2State.playerBusy
+    ? ' disabled'
+    : '';
+  const animationClass = test2State.aiBusy && test2State.aiAnimation
+    ? ` is-ai-${test2State.aiAnimation}`
+    : test2State.playerBusy && test2State.playerAnimation
+      ? ` is-player-${test2State.playerAnimation}`
+      : '';
+  const knights = test2State.stacks.knights;
+  const healAmount = test2HealPreview();
+  const healPreview = knights.abilityUsed
+    ? 'Умение уже использовано: +0 HP'
+    : `Восстановит +${healAmount} HP после проверки максимума HP`;
+  const healDisabled = actionDisabled || knights.abilityUsed || knights.actionPoints < 1 ? ' disabled' : '';
+  const resultMarkup = test2State.result && test2State.summary
+    ? `<div class="test2-result-overlay ${test2State.result}" role="status">
+        <strong>${test2State.result === 'win' ? 'Победа!' : 'Поражение'}</strong>
+        <span>${test2State.result === 'win' ? 'Демоны разбиты.' : 'Рыцари уничтожены.'}</span>
+        <div class="test2-summary">
+          <span><b>${test2State.summary.knightsLost}</b> потеряно рыцарей</span>
+          <span><b>${test2State.summary.demonsKilled}</b> убито демонов</span>
+          <span><b>+${test2State.summary.experience}</b> опыта командиру</span>
+          <span><b>+${test2State.summary.gold}</b> золота командиру</span>
+        </div>
+      </div>`
     : '';
   const logMarkup = test2State.log.slice(-7).map((entry) => `<li>${entry}</li>`).join('');
 
   app.innerHTML = `
-    <main class="test2-screen${aiAnimationClass}" aria-labelledby="test2-title">
+    <main class="test2-screen${animationClass}${test2State.result ? ' has-result' : ''}" aria-labelledby="test2-title">
       <section class="test2-card">
         <header class="test2-header">
           <div>
@@ -502,10 +580,11 @@ function renderTest2(): void {
           <section class="hex-board-panel" aria-label="Гексовое поле 12 на 6">
             <div class="hex-board-meta">
               <strong>Поле 12×6</strong>
-              <span>Синие — ваши · красные — ИИ</span>
+              <span>Синие — ваши · красные — ИИ · режим melee</span>
             </div>
             ${boardMarkup}
-            <p class="hex-help">Выберите Рыцарей и нажмите на подсвеченную клетку. Для атаки нажмите на Демонов: игра проверит расстояние и ОД.</p>
+            ${resultMarkup}
+            <p class="hex-help">Перемещайтесь по подсвеченным клеткам. В режиме melee удар проходит только с соседней клетки; при достаточном ОД Рыцари сначала пошагово подойдут к цели.</p>
           </section>
 
           <div class="test2-bottom-layout">
@@ -514,7 +593,7 @@ function renderTest2(): void {
                 <span>Очки действий</span>
                 <strong>${currentStack.actionPoints}/${currentStack.maxActionPoints}</strong>
               </div>
-              <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
+              <button class="test2-action" type="button" data-test2-action="heal"${healDisabled} title="${healPreview}">
                 <span class="test2-action-icon" aria-hidden="true">
                   <svg viewBox="0 0 32 32" focusable="false">
                     <path d="M16 27.2 5.7 17.4C1.4 13.3 4.1 6 10 6c2.4 0 4.6 1.2 6 3.1C17.4 7.2 19.6 6 22 6c5.9 0 8.6 7.3 4.3 11.4Z"></path>
@@ -523,8 +602,9 @@ function renderTest2(): void {
                 </span>
                 <span class="test2-action-copy">
                   <strong>Исцелить отряд</strong>
-                  <small>10 HP × число рыцарей · 1 ОД · ${test2State.stacks.knights.abilityUsed ? '0/1' : '1/1'}</small>
+                  <small>10 HP × число рыцарей · 1 ОД · ${knights.abilityUsed ? '0/1' : '1/1'}</small>
                 </span>
+                <span class="test2-hover-tooltip" role="tooltip">${healPreview}</span>
               </button>
             </section>
 
@@ -534,8 +614,6 @@ function renderTest2(): void {
             </section>
           </div>
         </div>
-
-        ${resultMarkup}
 
         <button class="menu-button menu-button-secondary test2-back-button" type="button" data-screen="tests">
           К списку тестов
@@ -547,6 +625,21 @@ function renderTest2(): void {
 
 function test2HexKey(x: number, y: number): string {
   return `${x}:${y}`;
+}
+
+function test2FormationRows(count: number): number {
+  const desiredRows = window.innerWidth < 560 ? 2 : window.innerWidth < 960 ? 3 : 4;
+  return Math.max(1, Math.min(count, desiredRows));
+}
+
+function test2FormationScale(): number {
+  if (window.innerWidth < 560) {
+    return 0.22;
+  }
+  if (window.innerWidth < 960) {
+    return 0.26;
+  }
+  return 0.3;
 }
 
 function test2StackAt(x: number, y: number): Test2Stack | null {
@@ -591,6 +684,56 @@ function test2Distance(startX: number, startY: number, targetX: number, targetY:
   return Number.POSITIVE_INFINITY;
 }
 
+function test2FindPath(startX: number, startY: number, targetX: number, targetY: number): Array<[number, number]> | null {
+  if (startX === targetX && startY === targetY) {
+    return [];
+  }
+
+  const startKey = test2HexKey(startX, startY);
+  const targetKey = test2HexKey(targetX, targetY);
+  const queue: Array<[number, number]> = [[startX, startY]];
+  const previous = new Map<string, [number, number] | null>([[startKey, null]]);
+
+  while (queue.length > 0) {
+    const [x, y] = queue.shift() as [number, number];
+
+    for (const [nextX, nextY] of test2Neighbors(x, y)) {
+      const key = test2HexKey(nextX, nextY);
+      if (previous.has(key)) {
+        continue;
+      }
+
+      const occupant = test2StackAt(nextX, nextY);
+      if (occupant && key !== targetKey) {
+        continue;
+      }
+
+      previous.set(key, [x, y]);
+      if (key === targetKey) {
+        const path: Array<[number, number]> = [];
+        let current: [number, number] = [targetX, targetY];
+        let currentKey = targetKey;
+
+        while (currentKey !== startKey) {
+          path.unshift(current);
+          const parent = previous.get(currentKey);
+          if (!parent) {
+            return null;
+          }
+          current = parent;
+          currentKey = test2HexKey(current[0], current[1]);
+        }
+
+        return path;
+      }
+
+      queue.push([nextX, nextY]);
+    }
+  }
+
+  return null;
+}
+
 function test2LivingCount(stack: Test2Stack): number {
   return stack.health > 0 ? Math.ceil(stack.health / stack.unitHealth) : 0;
 }
@@ -603,11 +746,51 @@ function test2CanAttack(attackerId: Test2Faction): boolean {
   const attacker = test2State.stacks[attackerId];
   const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
   const target = test2State.stacks[targetId];
+  const distance = test2Distance(attacker.x, attacker.y, target.x, target.y);
+  const allowedDistance = attacker.attackMode === 'melee' ? TEST2_MELEE_RANGE : TEST2_RANGE_ATTACK_DISTANCE;
 
-  return attacker.count > 0 && target.count > 0 && test2Distance(attacker.x, attacker.y, target.x, target.y) === 1;
+  const inAttackRange = attacker.attackMode === 'melee'
+    ? distance === TEST2_MELEE_RANGE
+    : distance > 0 && distance <= allowedDistance;
+
+  return attacker.count > 0 && target.count > 0 && inAttackRange;
 }
 
-function test2ApproachAndAttack(): boolean {
+async function animateTest2KnightMovement(path: Array<[number, number]>): Promise<void> {
+  const knights = test2State.stacks.knights;
+  test2State.playerBusy = true;
+  test2State.playerAnimation = 'move';
+
+  try {
+    for (const [nextX, nextY] of path) {
+      knights.x = nextX;
+      knights.y = nextY;
+      knights.actionPoints -= 1;
+      test2AddLog(`Рыцари переместились. Осталось ОД: ${knights.actionPoints}.`);
+      render('test2');
+      await wait(TEST2_STEP_DELAY);
+    }
+  } finally {
+    test2State.playerBusy = false;
+    test2State.playerAnimation = null;
+    render('test2');
+  }
+}
+
+async function animateTest2KnightAttack(): Promise<void> {
+  test2State.playerBusy = true;
+  test2State.playerAnimation = 'attack';
+  render('test2');
+  await wait(360);
+  test2Attack('knights');
+  render('test2');
+  await wait(260);
+  test2State.playerBusy = false;
+  test2State.playerAnimation = null;
+  render('test2');
+}
+
+async function test2ApproachAndAttack(): Promise<boolean> {
   const knights = test2State.stacks.knights;
   const demons = test2State.stacks.demons;
 
@@ -617,30 +800,42 @@ function test2ApproachAndAttack(): boolean {
   }
 
   if (test2CanAttack('knights')) {
-    test2Attack('knights');
+    await animateTest2KnightAttack();
     return true;
   }
 
-  const attackDistance = test2Distance(knights.x, knights.y, demons.x, demons.y);
-  const attackCell = test2Neighbors(demons.x, demons.y)
-    .filter(([x, y]) => !test2StackAt(x, y))
-    .map(([x, y]) => ({ x, y, moveCost: test2Distance(knights.x, knights.y, x, y) }))
-    .sort((left, right) => left.moveCost - right.moveCost)
-    .find((candidate) => candidate.moveCost + 1 <= knights.actionPoints);
-
-  if (!attackCell || attackDistance > knights.actionPoints) {
-    test2AddLog(`Недостаточно ОД для атаки: нужно ${attackDistance}, осталось ${knights.actionPoints}.`);
+  if (knights.attackMode !== 'melee') {
+    test2AddLog(`Цель вне дальности: режим ${knights.attackMode}, максимум ${TEST2_RANGE_ATTACK_DISTANCE} клеток.`);
     return false;
   }
 
-  if (attackCell.moveCost > 0) {
-    knights.x = attackCell.x;
-    knights.y = attackCell.y;
-    knights.actionPoints -= attackCell.moveCost;
-    test2AddLog(`Рыцари подошли к Демонам за ${attackCell.moveCost} ОД.`);
+  const attackCells = test2Neighbors(demons.x, demons.y)
+    .filter(([x, y]) => !test2StackAt(x, y))
+    .map(([x, y]) => ({
+      x,
+      y,
+      path: test2FindPath(knights.x, knights.y, x, y),
+    }))
+    .filter((candidate): candidate is { x: number; y: number; path: Array<[number, number]> } => candidate.path !== null)
+    .sort((left, right) => left.path.length - right.path.length);
+  const attackCell = attackCells.find((candidate) => candidate.path.length + 1 <= knights.actionPoints);
+
+  if (!attackCell) {
+    const nearestPath = attackCells[0]?.path;
+    const needed = nearestPath ? nearestPath.length + 1 : Number.POSITIVE_INFINITY;
+    test2AddLog(`Недостаточно ОД для melee-атаки: нужно ${needed}, осталось ${knights.actionPoints}.`);
+    return false;
   }
 
-  test2Attack('knights');
+  await animateTest2KnightMovement(attackCell.path);
+
+  if (!test2CanAttack('knights')) {
+    test2AddLog('Атака отменена: Демоны не на соседней клетке.');
+    render('test2');
+    return false;
+  }
+
+  await animateTest2KnightAttack();
   return true;
 }
 
@@ -659,16 +854,42 @@ function finishTest2(result: 'win' | 'lose'): void {
     return;
   }
 
+  const defeatedFaction: Test2Faction = result === 'win' ? 'demons' : 'knights';
+  const defeatedStack = test2State.stacks[defeatedFaction];
+  const demonsKilled = test2State.stacks.demons.maxCount - test2State.stacks.demons.count;
+
   test2State.result = result;
+  test2State.deathAnimation = {
+    faction: defeatedFaction,
+    x: defeatedStack.x,
+    y: defeatedStack.y,
+  };
+  test2State.summary = {
+    knightsLost: test2State.stacks.knights.maxCount - test2State.stacks.knights.count,
+    demonsKilled,
+    experience: demonsKilled * TEST2_XP_PER_DEMON,
+    gold: demonsKilled * TEST2_GOLD_PER_DEMON,
+  };
   audioManager.playBattleSound(result === 'win' ? 'victory' : 'defeat');
   test2AddLog(result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.');
+
+  const deathAnimation = test2State.deathAnimation;
+  window.setTimeout(() => {
+    if (test2State.deathAnimation !== deathAnimation) {
+      return;
+    }
+    test2State.deathAnimation = null;
+    if (activeScreen === 'test2') {
+      render('test2');
+    }
+  }, 760);
 }
 
 function test2CounterAttack(attackerId: Test2Faction, targetId: Test2Faction): void {
   const attacker = test2State.stacks[attackerId];
   const target = test2State.stacks[targetId];
 
-  if (attacker.count <= 0 || target.count <= 0 || test2Distance(attacker.x, attacker.y, target.x, target.y) !== 1) {
+  if (attacker.count <= 0 || target.count <= 0 || !test2CanAttack(attackerId)) {
     return;
   }
 
@@ -690,7 +911,9 @@ function test2Attack(attackerId: Test2Faction): void {
   const target = test2State.stacks[targetId];
 
   if (attacker.actionPoints < 1 || attacker.hasAttacked || !test2CanAttack(attackerId)) {
-    test2AddLog('Атака невозможна: цель должна быть на соседней клетке.');
+    test2AddLog(attacker.attackMode === 'melee'
+      ? 'Атака невозможна: цель должна быть ровно на соседней клетке.'
+      : `Атака невозможна: цель дальше ${TEST2_RANGE_ATTACK_DISTANCE} клеток.`);
     return;
   }
 
@@ -711,20 +934,41 @@ function test2Attack(attackerId: Test2Faction): void {
   test2CounterAttack(targetId, attackerId);
 }
 
+function test2HealPreview(): number {
+  const knights = test2State.stacks.knights;
+  if (test2State.result
+    || test2State.aiBusy
+    || test2State.playerBusy
+    || test2State.schedule[test2State.scheduleIndex] !== 'knights'
+    || knights.abilityUsed
+    || knights.actionPoints < 1
+    || knights.count <= 0) {
+    return 0;
+  }
+
+  const amount = TEST2_HEAL_PER_KNIGHT * knights.count;
+  const currentUnitCapacity = knights.count * knights.unitHealth;
+  return Math.min(amount, Math.max(0, currentUnitCapacity - knights.health));
+}
+
 function test2Heal(): boolean {
   const knights = test2State.stacks.knights;
-  if (knights.abilityUsed || knights.actionPoints < 1 || knights.count <= 0) {
+  const healed = test2HealPreview();
+  if (test2State.result
+    || test2State.aiBusy
+    || test2State.playerBusy
+    || test2State.schedule[test2State.scheduleIndex] !== 'knights'
+    || knights.abilityUsed
+    || knights.actionPoints < 1
+    || knights.count <= 0) {
     return false;
   }
 
-  const amount = 10 * knights.count;
-  const currentUnitCapacity = knights.count * knights.unitHealth;
-  const healed = Math.min(amount, Math.max(0, currentUnitCapacity - knights.health));
   knights.health += healed;
   knights.actionPoints -= 1;
   knights.abilityUsed = true;
   audioManager.playBattleSound('magic');
-  test2AddLog(`Исцеление отряда: +${healed} HP (${knights.count} рыцарей × 10).`);
+  test2AddLog(`Исцеление отряда: +${healed} HP (${knights.count} рыцарей × ${TEST2_HEAL_PER_KNIGHT}).`);
   return true;
 }
 
@@ -737,7 +981,7 @@ async function performTest2AiTurn(): Promise<void> {
   }
 
   let moved = 0;
-  while (demons.actionPoints > 0 && test2Distance(demons.x, demons.y, knights.x, knights.y) > 1) {
+  while (demons.actionPoints > 0 && !test2CanAttack('demons')) {
     const nextCell = test2Neighbors(demons.x, demons.y)
       .filter(([x, y]) => !test2StackAt(x, y))
       .sort((left, right) => test2Distance(left[0], left[1], knights.x, knights.y) - test2Distance(right[0], right[1], knights.x, knights.y))[0];
@@ -753,7 +997,7 @@ async function performTest2AiTurn(): Promise<void> {
     test2State.aiAnimation = 'move';
     test2AddLog(`Демоны переместились. Осталось ОД: ${demons.actionPoints}.`);
     render('test2');
-    await wait(320);
+    await wait(TEST2_STEP_DELAY);
   }
 
   if (moved === 0) {
@@ -773,7 +1017,7 @@ async function performTest2AiTurn(): Promise<void> {
 }
 
 async function advanceTest2Turn(): Promise<void> {
-  if (test2State.result || test2State.aiBusy) {
+  if (test2State.result || test2State.aiBusy || test2State.playerBusy) {
     return;
   }
 
@@ -817,20 +1061,26 @@ async function advanceTest2Turn(): Promise<void> {
 }
 
 function handleTest2Action(action: string): void {
-  if (test2State.result || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
+  if (test2State.result
+    || test2State.aiBusy
+    || test2State.playerBusy
+    || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
     return;
   }
 
   if (action === 'heal' && test2Heal()) {
-    advanceTest2Turn();
+    void advanceTest2Turn();
     return;
   }
 
   render('test2');
 }
 
-function handleTest2Cell(x: number, y: number): void {
-  if (test2State.result || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
+async function handleTest2Cell(x: number, y: number): Promise<void> {
+  if (test2State.result
+    || test2State.aiBusy
+    || test2State.playerBusy
+    || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
     return;
   }
 
@@ -844,13 +1094,10 @@ function handleTest2Cell(x: number, y: number): void {
   }
 
   if (occupant?.id === 'demons') {
-    if (test2ApproachAndAttack()) {
-      if (!test2State.result) {
-        advanceTest2Turn();
-      } else {
-        render('test2');
-      }
-    } else {
+    const attacked = await test2ApproachAndAttack();
+    if (attacked && !test2State.result) {
+      await advanceTest2Turn();
+    } else if (!attacked && !test2State.result) {
       render('test2');
     }
     return;
@@ -860,18 +1107,17 @@ function handleTest2Cell(x: number, y: number): void {
     return;
   }
 
-  const distance = test2Distance(knights.x, knights.y, x, y);
-  if (distance === 0 || distance > knights.actionPoints) {
+  const path = test2FindPath(knights.x, knights.y, x, y);
+  if (!path || path.length === 0 || path.length > knights.actionPoints) {
     test2AddLog('Эта клетка находится дальше доступного перемещения.');
     render('test2');
     return;
   }
 
-  knights.x = x;
-  knights.y = y;
-  knights.actionPoints -= distance;
-  test2AddLog(`Рыцари переместились на ${distance} клетк${distance === 1 ? 'у' : 'и'} и завершили ход.`);
-  advanceTest2Turn();
+  await animateTest2KnightMovement(path);
+  if (!test2State.result) {
+    await advanceTest2Turn();
+  }
 }
 
 function renderDifficulty(): void {
@@ -1382,8 +1628,11 @@ app.addEventListener('click', (event: MouseEvent) => {
 
   const hexCell = clickedElement.closest('[data-hex-x][data-hex-y]') as HTMLElement | null;
   if (activeScreen === 'test2' && hexCell && app.contains(hexCell)) {
+    if (test2State.result || test2State.aiBusy || test2State.playerBusy) {
+      return;
+    }
     audioManager.playButtonSound();
-    handleTest2Cell(Number(hexCell.dataset.hexX), Number(hexCell.dataset.hexY));
+    void handleTest2Cell(Number(hexCell.dataset.hexX), Number(hexCell.dataset.hexY));
     return;
   }
 
@@ -1402,7 +1651,7 @@ app.addEventListener('click', (event: MouseEvent) => {
   }
 
   if (activeScreen === 'test2' && button.dataset.hexX && button.dataset.hexY) {
-    handleTest2Cell(Number(button.dataset.hexX), Number(button.dataset.hexY));
+    void handleTest2Cell(Number(button.dataset.hexX), Number(button.dataset.hexY));
     return;
   }
 
@@ -1469,6 +1718,21 @@ window.addEventListener('keydown', () => {
   if (activeScreen !== 'testBattle' && activeScreen !== 'test2') {
     audioManager.startMusic();
   }
+});
+
+let resizeTimer: number | null = null;
+window.addEventListener('resize', () => {
+  if (activeScreen !== 'test2' || test2State.aiBusy || test2State.playerBusy) {
+    return;
+  }
+
+  if (resizeTimer !== null) {
+    window.clearTimeout(resizeTimer);
+  }
+  resizeTimer = window.setTimeout(() => {
+    resizeTimer = null;
+    render('test2');
+  }, 120);
 });
 
 applySettings();
