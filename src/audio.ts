@@ -1,6 +1,6 @@
 export type ButtonSound = 'soft' | 'arcane' | 'stone' | 'metal' | 'rune';
 export type BattleSound = 'hit' | 'double' | 'magic' | 'item' | 'miss' | 'victory' | 'defeat';
-export type SettlementSound = 'ui' | 'place' | 'complete' | 'upgrade' | 'resource' | 'limit' | 'recruit' | 'demolish' | 'ship' | 'blocked';
+export type SettlementSound = 'ui' | 'place' | 'complete' | 'upgrade' | 'resource' | 'limit' | 'recruit' | 'demolish' | 'ship' | 'blocked' | 'death';
 
 export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
   soft: 'Мягкий',
@@ -152,6 +152,7 @@ export class AudioManager {
       demolish: { frequencies: [240, 150, 90], duration: 0.24, wave: 'sawtooth', volume: 0.1 },
       ship: { frequencies: [280, 420, 560], duration: 0.3, wave: 'sine', volume: 0.14 },
       blocked: { frequencies: [120, 90], duration: 0.16, wave: 'square', volume: 0.09 },
+      death: { frequencies: [150, 105, 70], duration: 0.3, wave: 'sawtooth', volume: 0.1 },
     };
     const pattern = patterns[soundName];
     const start = context.currentTime;

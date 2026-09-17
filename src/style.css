@@ -1918,6 +1918,16 @@ h1 {
   background: rgb(154 52 18 / 38%);
 }
 
+.test3-resource-food.is-starving {
+  border-color: rgb(248 113 113 / 78%);
+  background: rgb(127 29 29 / 45%);
+  box-shadow: 0 0 0 1px rgb(248 113 113 / 24%);
+}
+
+.test3-resource-food.is-starving > b {
+  color: #fca5a5;
+}
+
 .test3-resource-fleet {
   border-color: rgb(56 189 248 / 40%);
 }
@@ -2418,6 +2428,36 @@ h1 {
 .test3-icon-svg circle,
 .test3-icon-svg ellipse {
   vector-effect: non-scaling-stroke;
+}
+
+.test3-icon-gold,
+.test3-icon-svg .test3-icon-gold {
+  fill: #facc15;
+  stroke: #fef08a;
+}
+
+.test3-icon-wood,
+.test3-icon-svg .test3-icon-wood {
+  fill: #a16207;
+  stroke: #facc15;
+}
+
+.test3-icon-stone,
+.test3-icon-svg .test3-icon-stone {
+  fill: #64748b;
+  stroke: #cbd5e1;
+}
+
+.test3-icon-hull,
+.test3-icon-svg .test3-icon-hull {
+  fill: #38bdf8;
+  stroke: #bae6fd;
+}
+
+.test3-icon-fish,
+.test3-icon-svg .test3-icon-fish {
+  fill: #fb923c;
+  stroke: #fed7aa;
 }
 
 .test3-building strong {
