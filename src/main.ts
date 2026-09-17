@@ -29,6 +29,8 @@ type Settings = AudioSettings;
 const MIN_VOLUME = 0;
 const MAX_VOLUME = 100;
 const MAX_HEALTH = 10;
+const BASE_ENEMY_HEALTH = 10;
+const BASE_ENEMY_DAMAGE = { min: 2, max: 4 };
 const LOG_LIMIT = 8;
 const HIT_CHANCE = 0.95;
 
@@ -38,22 +40,26 @@ const DEFAULT_SETTINGS: Settings = {
   buttonSound: 'rune',
 };
 
-const difficultyOptions: Record<Difficulty, { label: string; description: string }> = {
+const difficultyOptions: Record<Difficulty, { label: string; description: string; enemyMultiplier: number }> = {
   easy: {
     label: 'Легкий',
     description: 'Враги слабее в 2 раза',
+    enemyMultiplier: 0.5,
   },
   normal: {
     label: 'Средний',
     description: 'Базовый вариант',
+    enemyMultiplier: 1,
   },
   hard: {
     label: 'Тяжелый',
     description: 'Враги сильнее в 2 раза',
+    enemyMultiplier: 2,
   },
   impossible: {
     label: 'Невозможный',
     description: 'Враги сильнее в 4 раза',
+    enemyMultiplier: 4,
   },
 };
 
@@ -65,6 +71,7 @@ interface BattleLogEntry {
 interface BattleState {
   playerHealth: number;
   skeletonHealth: number;
+  skeletonMaxHealth: number;
   herbCount: number;
   doubleStrikeCooldown: number;
   healCooldown: number;
@@ -88,10 +95,27 @@ let activeScreen: Screen = 'menu';
 let selectedDifficulty: Difficulty | null = null;
 let battleState = createBattleState();
 
+function getSelectedDifficulty(): Difficulty {
+  return selectedDifficulty ?? 'normal';
+}
+
+function getEnemyProfile(): { maxHealth: number; damageMin: number; damageMax: number } {
+  const multiplier = difficultyOptions[getSelectedDifficulty()].enemyMultiplier;
+  return {
+    maxHealth: Math.max(1, Math.round(BASE_ENEMY_HEALTH * multiplier)),
+    damageMin: Math.max(1, Math.round(BASE_ENEMY_DAMAGE.min * multiplier)),
+    damageMax: Math.max(1, Math.round(BASE_ENEMY_DAMAGE.max * multiplier)),
+  };
+}
+
 function createBattleState(): BattleState {
+  const enemy = getEnemyProfile();
+  const difficulty = difficultyOptions[getSelectedDifficulty()];
+
   return {
     playerHealth: MAX_HEALTH,
-    skeletonHealth: MAX_HEALTH,
+    skeletonHealth: enemy.maxHealth,
+    skeletonMaxHealth: enemy.maxHealth,
     herbCount: 1,
     doubleStrikeCooldown: 0,
     healCooldown: 0,
@@ -100,6 +124,8 @@ function createBattleState(): BattleState {
     animation: null,
     busy: false,
     log: [
+      { type: 'system', text: `Сложность: ${difficulty.label}.` },
+      { type: 'system', text: `Скелет: ${enemy.maxHealth} HP, урон ${enemy.damageMin}–${enemy.damageMax}.` },
       { type: 'system', text: 'Бой начался. Ваш ход.' },
       { type: 'system', text: 'Скелет 1 Ур. поднимает оружие.' },
     ],
@@ -321,8 +347,8 @@ function renderSettings(): void {
 }
 
 function renderBattle(): void {
-  const playerHealthPercent = healthPercent(battleState.playerHealth);
-  const skeletonHealthPercent = healthPercent(battleState.skeletonHealth);
+  const playerHealthPercent = healthPercent(battleState.playerHealth, MAX_HEALTH);
+  const skeletonHealthPercent = healthPercent(battleState.skeletonHealth, battleState.skeletonMaxHealth);
   const actionDisabled = battleState.busy || battleState.result !== null ? ' disabled' : '';
   const doubleDisabled = battleState.busy || battleState.doubleStrikeCooldown > 0 || battleState.result !== null ? ' disabled' : '';
   const healDisabled = battleState.busy || battleState.healCooldown > 0 || battleState.result !== null ? ' disabled' : '';
@@ -361,9 +387,9 @@ function renderBattle(): void {
           <div class="battle-enemy-status">
             <div class="battle-health-heading">
               <strong>Скелет 1 Ур.</strong>
-              <output>${battleState.skeletonHealth}/${MAX_HEALTH}</output>
+              <output>${battleState.skeletonHealth}/${battleState.skeletonMaxHealth}</output>
             </div>
-            <div class="battle-health-bar" role="progressbar" aria-label="Здоровье скелета" aria-valuemin="0" aria-valuemax="${MAX_HEALTH}" aria-valuenow="${battleState.skeletonHealth}">
+            <div class="battle-health-bar" role="progressbar" aria-label="Здоровье скелета" aria-valuemin="0" aria-valuemax="${battleState.skeletonMaxHealth}" aria-valuenow="${battleState.skeletonHealth}">
               <span class="battle-health-fill" style="width: ${skeletonHealthPercent}%"></span>
             </div>
           </div>
@@ -467,8 +493,8 @@ function renderBattleDialog(doubleDisabled: string, healDisabled: string): strin
   `;
 }
 
-function healthPercent(value: number): number {
-  return Math.max(0, Math.min(100, (value / MAX_HEALTH) * 100));
+function healthPercent(value: number, maximum: number): number {
+  return maximum > 0 ? Math.max(0, Math.min(100, (value / maximum) * 100)) : 0;
 }
 
 function randomInteger(min: number, max: number): number {
@@ -511,7 +537,8 @@ function resolveEnemyStrike(): boolean {
     return false;
   }
 
-  const damage = randomInteger(2, 4);
+  const enemy = getEnemyProfile();
+  const damage = randomInteger(enemy.damageMin, enemy.damageMax);
   battleState.playerHealth = Math.max(0, battleState.playerHealth - damage);
   addBattleLog('enemy', `Скелет наносит ${damage} урона.`);
   return true;
