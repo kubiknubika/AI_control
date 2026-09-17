@@ -154,6 +154,46 @@ h1 {
   font-size: 13px;
 }
 
+.difficulty-option[data-difficulty='easy'] {
+  border-color: rgb(134 239 172 / 72%);
+  background: rgb(22 101 52 / 72%);
+}
+
+.difficulty-option[data-difficulty='easy']:hover {
+  border-color: #bbf7d0;
+  background: rgb(21 128 61 / 88%);
+}
+
+.difficulty-option[data-difficulty='normal'] {
+  border-color: rgb(147 197 253 / 72%);
+  background: rgb(30 64 175 / 72%);
+}
+
+.difficulty-option[data-difficulty='normal']:hover {
+  border-color: #dbeafe;
+  background: rgb(37 99 235 / 88%);
+}
+
+.difficulty-option[data-difficulty='hard'] {
+  border-color: rgb(253 186 116 / 76%);
+  background: rgb(154 52 18 / 74%);
+}
+
+.difficulty-option[data-difficulty='hard']:hover {
+  border-color: #fed7aa;
+  background: rgb(194 65 12 / 90%);
+}
+
+.difficulty-option[data-difficulty='impossible'] {
+  border-color: rgb(216 180 254 / 76%);
+  background: rgb(107 33 168 / 74%);
+}
+
+.difficulty-option[data-difficulty='impossible']:hover {
+  border-color: #f3e8ff;
+  background: rgb(126 34 206 / 90%);
+}
+
 .menu-button {
   min-height: 48px;
   padding: 12px 20px;

@@ -267,22 +267,28 @@ function updateVolumeSetting(target: HTMLInputElement): void {
 }
 
 app.addEventListener('click', (event: MouseEvent) => {
-  const target = event.target;
+  const clickedElement = event.target;
 
-  if (!(target instanceof HTMLButtonElement)) {
+  if (!(clickedElement instanceof Element)) {
+    return;
+  }
+
+  const button = clickedElement.closest<HTMLButtonElement>('button');
+
+  if (!button || !app.contains(button)) {
     return;
   }
 
   audioManager.startMusic();
   audioManager.playButtonSound();
 
-  if (isDifficulty(target.dataset.difficulty)) {
-    selectedDifficulty = target.dataset.difficulty;
+  if (isDifficulty(button.dataset.difficulty)) {
+    selectedDifficulty = button.dataset.difficulty;
     render('play');
     return;
   }
 
-  const nextScreen = target.dataset.screen as Screen | undefined;
+  const nextScreen = button.dataset.screen as Screen | undefined;
 
   if (nextScreen) {
     render(nextScreen);
