@@ -535,9 +535,7 @@ function renderTest2(): void {
       : '';
   const knights = test2State.stacks.knights;
   const healAmount = test2HealPreview();
-  const healPreview = knights.abilityUsed
-    ? 'Умение уже использовано: +0 HP'
-    : `Восстановит +${healAmount} HP после проверки максимума HP`;
+  const healPreview = knights.abilityUsed ? '0/1 · +0 HP' : `+${healAmount} HP`;
   const healDisabled = actionDisabled || knights.abilityUsed || knights.actionPoints < 1 ? ' disabled' : '';
   const resultMarkup = test2State.result && test2State.summary
     ? `<div class="test2-result-overlay ${test2State.result}" role="status">
@@ -584,7 +582,7 @@ function renderTest2(): void {
             </div>
             ${boardMarkup}
             ${resultMarkup}
-            <p class="hex-help">Перемещайтесь по подсвеченным клеткам. В режиме melee удар проходит только с соседней клетки; при достаточном ОД Рыцари сначала пошагово подойдут к цели.</p>
+            <p class="hex-help">melee: соседняя клетка · перемещение до 3 ОД · удар 1 ОД.</p>
           </section>
 
           <div class="test2-bottom-layout">
@@ -602,7 +600,7 @@ function renderTest2(): void {
                 </span>
                 <span class="test2-action-copy">
                   <strong>Исцелить отряд</strong>
-                  <small>10 HP × число рыцарей · 1 ОД · ${knights.abilityUsed ? '0/1' : '1/1'}</small>
+                  <small>+${healAmount} HP · ${knights.abilityUsed ? '0/1' : '1/1'}</small>
                 </span>
                 <span class="test2-hover-tooltip" role="tooltip">${healPreview}</span>
               </button>
@@ -649,8 +647,8 @@ function test2StackAt(x: number, y: number): Test2Stack | null {
 
 function test2Neighbors(x: number, y: number): Array<[number, number]> {
   const directions = y % 2 === 0
-    ? [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]]
-    : [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
+    ? [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]]
+    : [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]];
 
   return directions
     .map(([dx, dy]) => [x + dx, y + dy] as [number, number])
@@ -734,6 +732,20 @@ function test2FindPath(startX: number, startY: number, targetX: number, targetY:
   return null;
 }
 
+function test2FindMeleeApproachPath(attackerId: Test2Faction): Array<[number, number]> | null {
+  const attacker = test2State.stacks[attackerId];
+  const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
+  const target = test2State.stacks[targetId];
+
+  const paths = test2Neighbors(target.x, target.y)
+    .filter(([x, y]) => !test2StackAt(x, y))
+    .map(([x, y]) => test2FindPath(attacker.x, attacker.y, x, y))
+    .filter((path): path is Array<[number, number]> => path !== null)
+    .sort((left, right) => left.length - right.length);
+
+  return paths[0] ?? null;
+}
+
 function test2LivingCount(stack: Test2Stack): number {
   return stack.health > 0 ? Math.ceil(stack.health / stack.unitHealth) : 0;
 }
@@ -809,25 +821,27 @@ async function test2ApproachAndAttack(): Promise<boolean> {
     return false;
   }
 
-  const attackCells = test2Neighbors(demons.x, demons.y)
-    .filter(([x, y]) => !test2StackAt(x, y))
-    .map(([x, y]) => ({
-      x,
-      y,
-      path: test2FindPath(knights.x, knights.y, x, y),
-    }))
-    .filter((candidate): candidate is { x: number; y: number; path: Array<[number, number]> } => candidate.path !== null)
-    .sort((left, right) => left.path.length - right.path.length);
-  const attackCell = attackCells.find((candidate) => candidate.path.length + 1 <= knights.actionPoints);
-
-  if (!attackCell) {
-    const nearestPath = attackCells[0]?.path;
-    const needed = nearestPath ? nearestPath.length + 1 : Number.POSITIVE_INFINITY;
-    test2AddLog(`Недостаточно ОД для melee-атаки: нужно ${needed}, осталось ${knights.actionPoints}.`);
+  const approachPath = test2FindMeleeApproachPath('knights');
+  if (!approachPath) {
+    test2AddLog('К соседней клетке нет свободного пути.');
     return false;
   }
 
-  await animateTest2KnightMovement(attackCell.path);
+  const attackCost = approachPath.length + 1;
+  if (attackCost > knights.actionPoints) {
+    const moveSteps = Math.min(3, knights.actionPoints, approachPath.length);
+    if (moveSteps === 0) {
+      test2AddLog('Для сближения не осталось ОД.');
+      return false;
+    }
+
+    await animateTest2KnightMovement(approachPath.slice(0, moveSteps));
+    test2AddLog(`Рыцари потратили ${moveSteps} ОД на сближение. Для удара нужна соседняя клетка и 1 ОД.`);
+    render('test2');
+    return true;
+  }
+
+  await animateTest2KnightMovement(approachPath);
 
   if (!test2CanAttack('knights')) {
     test2AddLog('Атака отменена: Демоны не на соседней клетке.');
@@ -981,27 +995,22 @@ async function performTest2AiTurn(): Promise<void> {
   }
 
   let moved = 0;
-  while (demons.actionPoints > 0 && !test2CanAttack('demons')) {
-    const nextCell = test2Neighbors(demons.x, demons.y)
-      .filter(([x, y]) => !test2StackAt(x, y))
-      .sort((left, right) => test2Distance(left[0], left[1], knights.x, knights.y) - test2Distance(right[0], right[1], knights.x, knights.y))[0];
+  const movementBudget = Math.min(3, Math.max(0, demons.actionPoints - 1));
+  const approachPath = !test2CanAttack('demons') && demons.attackMode === 'melee'
+    ? test2FindMeleeApproachPath('demons')
+    : null;
 
-    if (!nextCell) {
-      break;
+  if (approachPath) {
+    for (const [nextX, nextY] of approachPath.slice(0, movementBudget)) {
+      demons.x = nextX;
+      demons.y = nextY;
+      demons.actionPoints -= 1;
+      moved += 1;
+      test2State.aiAnimation = 'move';
+      test2AddLog(`Демоны переместились. Осталось ОД: ${demons.actionPoints}.`);
+      render('test2');
+      await wait(TEST2_STEP_DELAY);
     }
-
-    demons.x = nextCell[0];
-    demons.y = nextCell[1];
-    demons.actionPoints -= 1;
-    moved += 1;
-    test2State.aiAnimation = 'move';
-    test2AddLog(`Демоны переместились. Осталось ОД: ${demons.actionPoints}.`);
-    render('test2');
-    await wait(TEST2_STEP_DELAY);
-  }
-
-  if (moved === 0) {
-    test2AddLog('Демоны уже рядом с рыцарями.');
   }
 
   if (test2CanAttack('demons') && demons.actionPoints > 0) {
@@ -1011,8 +1020,12 @@ async function performTest2AiTurn(): Promise<void> {
     test2Attack('demons');
     render('test2');
     await wait(420);
-  } else {
-    test2AddLog('Демоны не достают до рыцарей и заканчивают ход.');
+  } else if (moved > 0) {
+    test2AddLog(`Демоны потратили ${moved} ОД на сближение.`);
+  } else if (!test2CanAttack('demons')) {
+    test2AddLog(approachPath
+      ? 'Демонам не хватило ОД для выхода на соседнюю клетку.'
+      : 'Демонам не удалось найти свободный путь к соседней клетке.');
   }
 }
 
