@@ -6,10 +6,22 @@ import {
   type ButtonSound,
 } from './audio';
 
-type Screen = 'menu' | 'difficulty' | 'play' | 'tests' | 'settings';
+type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'settings';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
 type BattleMenu = 'skill' | 'magic' | null;
 type BattleResult = 'win' | 'lose' | null;
+type BattleAnimation =
+  | 'player-attack'
+  | 'player-double'
+  | 'skeleton-hit'
+  | 'skeleton-dodge'
+  | 'enemy-attack'
+  | 'player-hit'
+  | 'player-dodge'
+  | 'player-cast'
+  | 'player-heal'
+  | 'player-item'
+  | null;
 type BattleLogType = 'system' | 'player' | 'enemy' | 'miss' | 'heal' | 'item' | 'victory' | 'defeat';
 type BattleAction = 'attack' | 'skill-menu' | 'magic-menu' | 'double-strike' | 'heal' | 'item' | 'close-menu';
 type Settings = AudioSettings;
@@ -18,6 +30,7 @@ const MIN_VOLUME = 0;
 const MAX_VOLUME = 100;
 const MAX_HEALTH = 10;
 const LOG_LIMIT = 8;
+const HIT_CHANCE = 0.95;
 
 const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
@@ -57,6 +70,8 @@ interface BattleState {
   healCooldown: number;
   openMenu: BattleMenu;
   result: BattleResult;
+  animation: BattleAnimation;
+  busy: boolean;
   log: BattleLogEntry[];
 }
 
@@ -82,6 +97,8 @@ function createBattleState(): BattleState {
     healCooldown: 0,
     openMenu: null,
     result: null,
+    animation: null,
+    busy: false,
     log: [
       { type: 'system', text: 'Бой начался. Ваш ход.' },
       { type: 'system', text: 'Скелет 1 Ур. поднимает оружие.' },
@@ -133,7 +150,7 @@ function render(screen: Screen): void {
           <p class="eyebrow">Прототип</p>
           <h1 id="menu-title">Главное меню</h1>
           <nav class="menu-actions" aria-label="Основные разделы">
-            <button class="menu-button" type="button" data-screen="difficulty">Играть</button>
+            <button class="menu-button" type="button" data-screen="play">Играть</button>
             <button class="menu-button" type="button" data-screen="tests">Тесты</button>
             <button class="menu-button" type="button" data-screen="settings">Настройки</button>
           </nav>
@@ -148,22 +165,51 @@ function render(screen: Screen): void {
     return;
   }
 
+  if (screen === 'tests') {
+    renderTests();
+    return;
+  }
+
   if (screen === 'difficulty') {
     renderDifficulty();
     return;
   }
 
-  if (screen === 'play') {
+  if (screen === 'testBattle') {
     renderBattle();
     return;
   }
 
+  renderPlayPlaceholder();
+}
+
+function renderPlayPlaceholder(): void {
   app.innerHTML = `
-    <main class="screen" aria-labelledby="placeholder-title">
+    <main class="screen" aria-labelledby="play-title">
       <section class="menu-card placeholder-card">
         <p class="eyebrow">Прототип</p>
-        <h1 id="placeholder-title">Тесты</h1>
-        <p class="placeholder-text">Раздел тестов пока пуст.</p>
+        <h1 id="play-title">Игра</h1>
+        <p class="placeholder-text">Игровой экран пока не добавлен.</p>
+        <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
+          В главное меню
+        </button>
+      </section>
+    </main>
+  `;
+}
+
+function renderTests(): void {
+  app.innerHTML = `
+    <main class="screen" aria-labelledby="tests-title">
+      <section class="menu-card tests-card">
+        <p class="eyebrow">Проверка механик</p>
+        <h1 id="tests-title">Тесты</h1>
+        <div class="test-list">
+          <button class="test-option" type="button" data-screen="difficulty">
+            <strong>Тест 1 · Бой 1 на 1</strong>
+            <small>Схватка со скелетом в коридоре замка</small>
+          </button>
+        </div>
         <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
           В главное меню
         </button>
@@ -185,13 +231,13 @@ function renderDifficulty(): void {
   app.innerHTML = `
     <main class="screen" aria-labelledby="difficulty-title">
       <section class="menu-card difficulty-card">
-        <p class="eyebrow">Новая игра</p>
+        <p class="eyebrow">Тест 1 · Бой 1 на 1</p>
         <h1 id="difficulty-title">Сложность</h1>
         <div class="difficulty-list" aria-label="Выбор уровня сложности">
           ${options}
         </div>
-        <button class="menu-button menu-button-secondary" type="button" data-screen="menu">
-          В главное меню
+        <button class="menu-button menu-button-secondary" type="button" data-screen="tests">
+          К списку тестов
         </button>
       </section>
     </main>
@@ -277,11 +323,19 @@ function renderSettings(): void {
 function renderBattle(): void {
   const playerHealthPercent = healthPercent(battleState.playerHealth);
   const skeletonHealthPercent = healthPercent(battleState.skeletonHealth);
-  const actionDisabled = battleState.result !== null ? ' disabled' : '';
-  const doubleDisabled = battleState.doubleStrikeCooldown > 0 || battleState.result !== null ? ' disabled' : '';
-  const healDisabled = battleState.healCooldown > 0 || battleState.result !== null ? ' disabled' : '';
-  const itemDisabled = battleState.herbCount <= 0 || battleState.result !== null ? ' disabled' : '';
+  const actionDisabled = battleState.busy || battleState.result !== null ? ' disabled' : '';
+  const doubleDisabled = battleState.busy || battleState.doubleStrikeCooldown > 0 || battleState.result !== null ? ' disabled' : '';
+  const healDisabled = battleState.busy || battleState.healCooldown > 0 || battleState.result !== null ? ' disabled' : '';
+  const itemDisabled = battleState.busy || battleState.herbCount <= 0 || battleState.result !== null ? ' disabled' : '';
   const difficultyLabel = selectedDifficulty ? difficultyOptions[selectedDifficulty].label : 'Средний';
+  const turnLabel = battleState.busy
+    ? battleState.animation === 'enemy-attack' || battleState.animation === 'player-hit' || battleState.animation === 'player-dodge'
+      ? 'Ход скелета'
+      : 'Действие'
+    : battleState.result
+      ? 'Бой окончен'
+      : 'Ваш ход';
+  const animationClass = battleState.animation ? ` is-${battleState.animation}` : '';
   const logMarkup = battleState.log
     .slice(-LOG_LIMIT)
     .map((entry) => `<li class="battle-log-entry" data-log-type="${entry.type}">${entry.text}</li>`)
@@ -300,10 +354,10 @@ function renderBattle(): void {
             <p class="eyebrow">Тест 1 · Бой 1 на 1 · ${difficultyLabel}</p>
             <h1 id="battle-title">Схватка в замковом коридоре</h1>
           </div>
-          <span class="battle-turn-label">Ваш ход</span>
+          <span class="battle-turn-label">${turnLabel}</span>
         </header>
 
-        <section class="battle-scene" aria-label="Коридор замка и противник">
+        <section class="battle-scene${animationClass}" aria-label="Коридор замка и противники">
           <div class="battle-enemy-status">
             <div class="battle-health-heading">
               <strong>Скелет 1 Ур.</strong>
@@ -313,6 +367,7 @@ function renderBattle(): void {
               <span class="battle-health-fill" style="width: ${skeletonHealthPercent}%"></span>
             </div>
           </div>
+          <img class="player-sprite" src="/assets/player-adventurer.png" alt="Ваш герой" />
           <img class="skeleton-sprite" src="/assets/skeleton-warrior.png" alt="Скелет в доспехах" />
         </section>
 
@@ -353,7 +408,6 @@ function renderBattle(): void {
           <section class="battle-log-panel" aria-labelledby="battle-log-title">
             <div class="battle-log-heading">
               <h2 id="battle-log-title">Журнал боя</h2>
-              <span>Ход за ходом</span>
             </div>
             <ol class="battle-log" aria-live="polite">
               ${logMarkup}
@@ -364,8 +418,8 @@ function renderBattle(): void {
 
         ${renderBattleDialog(doubleDisabled, healDisabled)}
 
-        <button class="menu-button menu-button-secondary battle-menu-button" type="button" data-screen="menu">
-          В главное меню
+        <button class="menu-button menu-button-secondary battle-menu-button" type="button" data-screen="tests">
+          К списку тестов
         </button>
       </section>
     </main>
@@ -418,6 +472,14 @@ function randomInteger(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function rollHit(): boolean {
+  return Math.random() < HIT_CHANCE;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 function addBattleLog(type: BattleLogType, text: string): void {
   battleState.log.push({ type, text });
   battleState.log = battleState.log.slice(-LOG_LIMIT);
@@ -428,48 +490,28 @@ function advanceCooldowns(): void {
   battleState.healCooldown = Math.max(0, battleState.healCooldown - 1);
 }
 
-function resolvePlayerStrike(label: string, playSound: boolean): boolean {
-  if (Math.random() >= 0.95) {
+function resolvePlayerStrike(label: string): boolean {
+  if (!rollHit()) {
     addBattleLog('miss', `${label}: промах.`);
-    if (playSound) {
-      audioManager.playBattleSound('miss');
-    }
     return false;
   }
 
   const damage = randomInteger(1, 2);
   battleState.skeletonHealth = Math.max(0, battleState.skeletonHealth - damage);
   addBattleLog('player', `${label}: ${damage} урона скелету.`);
-
-  if (playSound) {
-    audioManager.playBattleSound('hit');
-  }
-
   return true;
 }
 
-function enemyTurn(): void {
-  if (battleState.skeletonHealth <= 0 || battleState.result) {
-    finishBattle('win');
-    return;
-  }
-
-  if (Math.random() >= 0.95) {
+function resolveEnemyStrike(): boolean {
+  if (!rollHit()) {
     addBattleLog('miss', 'Скелет атакует: промах.');
-    audioManager.playBattleSound('miss');
-  } else {
-    const damage = randomInteger(2, 4);
-    battleState.playerHealth = Math.max(0, battleState.playerHealth - damage);
-    addBattleLog('enemy', `Скелет наносит ${damage} урона.`);
-    audioManager.playBattleSound('hit');
+    return false;
   }
 
-  if (battleState.playerHealth <= 0) {
-    finishBattle('lose');
-    return;
-  }
-
-  addBattleLog('system', 'Ваш ход.');
+  const damage = randomInteger(2, 4);
+  battleState.playerHealth = Math.max(0, battleState.playerHealth - damage);
+  addBattleLog('enemy', `Скелет наносит ${damage} урона.`);
+  return true;
 }
 
 function finishBattle(result: Exclude<BattleResult, null>): void {
@@ -482,79 +524,162 @@ function finishBattle(result: Exclude<BattleResult, null>): void {
   addBattleLog(result === 'win' ? 'victory' : 'defeat', result === 'win' ? 'Победа! Скелет повержен.' : 'Поражение. Вы потеряли сознание.');
 }
 
-function handleBattleAction(action: BattleAction): void {
+async function animateSingleStrike(label: string): Promise<void> {
+  battleState.animation = 'player-attack';
+  render('testBattle');
+  await wait(520);
+
+  const hit = resolvePlayerStrike(label);
+
+  if (hit) {
+    audioManager.playBattleSound('hit');
+    battleState.animation = 'skeleton-hit';
+  } else {
+    audioManager.playBattleSound('miss');
+    battleState.animation = 'skeleton-dodge';
+  }
+
+  render('testBattle');
+  await wait(hit ? 460 : 340);
+}
+
+async function animateDoubleStrike(): Promise<void> {
+  audioManager.playBattleSound('double');
+  battleState.animation = 'player-double';
+  render('testBattle');
+  await wait(500);
+
+  const firstHit = resolvePlayerStrike('Двойной удар — первый удар');
+  battleState.animation = firstHit ? 'skeleton-hit' : 'skeleton-dodge';
+  render('testBattle');
+  await wait(firstHit ? 300 : 240);
+
+  if (battleState.skeletonHealth <= 0) {
+    return;
+  }
+
+  battleState.animation = 'player-double';
+  render('testBattle');
+  await wait(390);
+
+  const secondHit = resolvePlayerStrike('Двойной удар — второй удар');
+  battleState.animation = secondHit ? 'skeleton-hit' : 'skeleton-dodge';
+  render('testBattle');
+  await wait(secondHit ? 460 : 340);
+}
+
+async function animateEnemyTurn(): Promise<void> {
+  if (battleState.skeletonHealth <= 0 || battleState.result) {
+    finishBattle('win');
+    return;
+  }
+
+  battleState.animation = 'enemy-attack';
+  render('testBattle');
+  await wait(560);
+
+  const hit = resolveEnemyStrike();
+  audioManager.playBattleSound(hit ? 'hit' : 'miss');
+  battleState.animation = hit ? 'player-hit' : 'player-dodge';
+  render('testBattle');
+  await wait(hit ? 480 : 360);
+
+  if (battleState.playerHealth <= 0) {
+    finishBattle('lose');
+    return;
+  }
+
+  addBattleLog('system', 'Ваш ход.');
+}
+
+async function animateHealing(kind: 'magic' | 'item'): Promise<void> {
+  battleState.animation = kind === 'magic' ? 'player-cast' : 'player-item';
+  audioManager.playBattleSound(kind === 'magic' ? 'magic' : 'item');
+  render('testBattle');
+  await wait(kind === 'magic' ? 620 : 480);
+
+  const amount = kind === 'magic' ? 5 : 3;
+  const healed = Math.min(amount, MAX_HEALTH - battleState.playerHealth);
+  battleState.playerHealth += healed;
+  addBattleLog(
+    kind === 'magic' ? 'heal' : 'item',
+    healed > 0
+      ? `${kind === 'magic' ? 'Лечение' : 'Лечебная трава'} восстанавливает ${healed} здоровья.`
+      : `${kind === 'magic' ? 'Лечение' : 'Лечебная трава'}: здоровье уже полное.`,
+  );
+  battleState.animation = kind === 'magic' ? 'player-heal' : 'player-item';
+  render('testBattle');
+  await wait(440);
+}
+
+async function handleBattleAction(action: BattleAction): Promise<void> {
   if (action === 'close-menu') {
     battleState.openMenu = null;
-    render('play');
+    render('testBattle');
     return;
   }
 
   if (action === 'skill-menu') {
-    if (!battleState.result) {
+    if (!battleState.result && !battleState.busy) {
       battleState.openMenu = 'skill';
-      render('play');
+      render('testBattle');
     }
     return;
   }
 
   if (action === 'magic-menu') {
-    if (!battleState.result) {
+    if (!battleState.result && !battleState.busy) {
       battleState.openMenu = 'magic';
-      render('play');
+      render('testBattle');
     }
     return;
   }
 
-  if (battleState.result) {
+  if (battleState.result || battleState.busy) {
+    return;
+  }
+
+  if (action === 'double-strike' && battleState.doubleStrikeCooldown > 0) {
+    return;
+  }
+
+  if (action === 'heal' && battleState.healCooldown > 0) {
+    return;
+  }
+
+  if (action === 'item' && battleState.herbCount <= 0) {
     return;
   }
 
   battleState.openMenu = null;
+  battleState.busy = true;
+  advanceCooldowns();
+  render('testBattle');
 
-  if (action === 'attack') {
-    advanceCooldowns();
-    resolvePlayerStrike('Атака', true);
-    enemyTurn();
-  } else if (action === 'double-strike') {
-    if (battleState.doubleStrikeCooldown > 0) {
-      return;
+  try {
+    if (action === 'attack') {
+      await animateSingleStrike('Атака');
+    } else if (action === 'double-strike') {
+      battleState.doubleStrikeCooldown = 5;
+      await animateDoubleStrike();
+    } else if (action === 'heal') {
+      battleState.healCooldown = 5;
+      await animateHealing('magic');
+    } else if (action === 'item') {
+      battleState.herbCount = 0;
+      await animateHealing('item');
     }
 
-    advanceCooldowns();
-    battleState.doubleStrikeCooldown = 5;
-    audioManager.playBattleSound('double');
-    resolvePlayerStrike('Двойной удар — первый удар', false);
-    if (battleState.skeletonHealth > 0) {
-      resolvePlayerStrike('Двойной удар — второй удар', false);
+    if (battleState.skeletonHealth <= 0) {
+      finishBattle('win');
+    } else if (battleState.playerHealth > 0) {
+      await animateEnemyTurn();
     }
-    enemyTurn();
-  } else if (action === 'heal') {
-    if (battleState.healCooldown > 0) {
-      return;
-    }
-
-    advanceCooldowns();
-    battleState.healCooldown = 5;
-    const healed = Math.min(5, MAX_HEALTH - battleState.playerHealth);
-    battleState.playerHealth += healed;
-    addBattleLog('heal', healed > 0 ? `Лечение восстанавливает ${healed} здоровья.` : 'Лечение: здоровье уже полное.');
-    audioManager.playBattleSound('magic');
-    enemyTurn();
-  } else if (action === 'item') {
-    if (battleState.herbCount <= 0) {
-      return;
-    }
-
-    advanceCooldowns();
-    battleState.herbCount = 0;
-    const healed = Math.min(3, MAX_HEALTH - battleState.playerHealth);
-    battleState.playerHealth += healed;
-    addBattleLog('item', healed > 0 ? `Лечебная трава восстанавливает ${healed} здоровья.` : 'Лечебная трава: здоровье уже полное.');
-    audioManager.playBattleSound('item');
-    enemyTurn();
+  } finally {
+    battleState.busy = false;
+    battleState.animation = null;
+    render('testBattle');
   }
-
-  render('play');
 }
 
 function updateVolumeSetting(target: HTMLInputElement): void {
@@ -570,7 +695,7 @@ function updateVolumeSetting(target: HTMLInputElement): void {
 
   applySettings();
 
-  if (settings.musicVolume > 0 && activeScreen !== 'play') {
+  if (settings.musicVolume > 0 && activeScreen !== 'testBattle') {
     audioManager.startMusic();
   }
 
@@ -590,7 +715,7 @@ app.addEventListener('click', (event: MouseEvent) => {
 
   if (clickedElement.matches('[data-close-battle-menu]')) {
     battleState.openMenu = null;
-    render('play');
+    render('testBattle');
     return;
   }
 
@@ -606,21 +731,21 @@ app.addEventListener('click', (event: MouseEvent) => {
     selectedDifficulty = button.dataset.difficulty;
     battleState = createBattleState();
     audioManager.startBattleMusic();
-    render('play');
+    render('testBattle');
     return;
   }
 
   const battleAction = button.dataset.battleAction;
 
   if (isBattleAction(battleAction)) {
-    handleBattleAction(battleAction);
+    void handleBattleAction(battleAction);
     return;
   }
 
   const nextScreen = button.dataset.screen as Screen | undefined;
 
   if (nextScreen) {
-    if (nextScreen === 'menu' || nextScreen === 'difficulty' || nextScreen === 'settings' || nextScreen === 'tests') {
+    if (nextScreen !== 'testBattle') {
       audioManager.startMusic();
     }
     render(nextScreen);
@@ -650,12 +775,12 @@ app.addEventListener('change', (event: Event) => {
 });
 
 window.addEventListener('pointerdown', () => {
-  if (activeScreen !== 'play') {
+  if (activeScreen !== 'testBattle') {
     audioManager.startMusic();
   }
 }, { passive: true });
 window.addEventListener('keydown', () => {
-  if (activeScreen !== 'play') {
+  if (activeScreen !== 'testBattle') {
     audioManager.startMusic();
   }
 });

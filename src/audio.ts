@@ -37,6 +37,7 @@ const BATTLE_SOUND_FILES: Record<BattleSound, string> = {
 };
 
 const MAX_MIX_VOLUME = 0.62;
+const MAX_BATTLE_VOLUME = 0.85;
 
 type MusicMode = 'menu' | 'battle';
 
@@ -115,7 +116,7 @@ export class AudioManager {
     const sound = this.battleSounds[soundName];
     sound.pause();
     sound.currentTime = 0;
-    sound.volume = (this.settings.buttonSoundVolume / 100) * MAX_MIX_VOLUME;
+    sound.volume = (this.settings.buttonSoundVolume / 100) * MAX_BATTLE_VOLUME;
     void sound.play().catch(() => {
       // Ошибка воспроизведения не должна ломать ход боя.
     });

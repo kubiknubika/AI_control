@@ -12,10 +12,11 @@ flowchart TD
     styles[src/style.css\nфон, анимация, меню, настройки]
     audio[src/audio.ts\nAudioManager]
     settings[Состояние настроек\nAudioSettings]
-    screen[Screen\nmenu | difficulty | play | tests | settings]
+    screen[Screen\nmenu | play | tests | difficulty | testBattle | settings]
     menu[Главное меню]
     difficultyScreen[Выбор сложности]
-    placeholders[Заглушки\nИгра / Тесты]
+    testBattle[Тест 1\nбой 1 на 1]
+    placeholders[Заглушка\nИгра]
     settingsScreen[Экран настроек]
     music[Our Mountain — looping MP3\nвнешний URL]
     battleMusic[Preparing for Battle — looping MP3\nвнешний URL]
@@ -32,6 +33,7 @@ flowchart TD
     background[public/assets/menu-fantasy-background.png]
     battleBackground[public/assets/battle-castle-corridor.png]
     skeleton[public/assets/skeleton-warrior.png]
+    player[public/assets/player-adventurer.png]
     cursorDefault[public/assets/cursor-default.svg]
     cursorPointer[public/assets/cursor-pointer.svg]
     credits[docs/audio-credits.md\nлицензии и источники]
@@ -45,6 +47,7 @@ flowchart TD
     entry --> settings
     screen --> menu
     screen --> difficultyScreen
+    screen --> testBattle
     screen --> placeholders
     screen --> settingsScreen
     settingsScreen --> settings
@@ -66,6 +69,7 @@ flowchart TD
     styles --> background
     styles --> battleBackground
     entry --> skeleton
+    entry --> player
     styles --> cursorDefault
     styles --> cursorPointer
     vite --> html
@@ -74,6 +78,7 @@ flowchart TD
     vite --> background
     vite --> battleBackground
     vite --> skeleton
+    vite --> player
     vite --> music
     vite --> battleMusic
 ```
@@ -83,7 +88,7 @@ flowchart TD
 | Узел | Ответственность | Что не должен знать |
 |---|---|---|
 | `index.html` | HTML-точка входа и корневой `#app` | Игровые правила и аудиологику |
-| `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали аудиофайлов и CSS |
+| `src/main.ts` | Состояние экранов, рендер меню/тестового боя/настроек, события UI и боевые правила | Детали аудиофайлов и CSS |
 | `src/audio.ts` | Загрузка menu/battle loop-музыки и локальных UI/боевых SFX, громкость, запуск/остановка | Разметку экранов и CSS |
 | `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, курсоры | Переключение экранов и аудиосостояние |
 | `public/assets/*` | Визуальные ресурсы | Логику приложения |
@@ -96,7 +101,7 @@ flowchart TD
 ### `Screen`
 
 ```text
-menu | difficulty | play | tests | settings
+menu | play | tests | difficulty | testBattle | settings
 ```
 
 `render(screen)` полностью заменяет содержимое `#app`. Поэтому при добавлении нового экрана нужно помнить, что DOM-элементы предыдущего экрана уничтожаются.
@@ -177,14 +182,17 @@ change на select
 ### Выбор сложности
 
 ```text
-click на «Играть»
+click на «Тесты»
   -> AudioManager.startMusic()
   -> AudioManager.playButtonSound()
+  -> render('tests')
+  -> click на «Тест 1 · Бой 1 на 1»
   -> render('difficulty')
   -> отображаются четыре варианта сложности
   -> click на вариант
   -> сохранение выбранной сложности в памяти
-  -> render('play')
+  -> AudioManager.startBattleMusic()
+  -> render('testBattle')
 ```
 
 ### Ход боя
@@ -198,7 +206,9 @@ click на действие
   -> обновление красных HP-баров без прокрутки журнала
 ```
 
-`Умение` и `Магия` открывают модальное окно. Двойной удар делает две отдельные атаки и получает перезарядку 5 ходов. Лечение восстанавливает 5 HP и получает перезарядку 5 ходов. Предмет использует одну лечебную траву и восстанавливает 3 HP.
+`Умение` и `Магия` открывают модальное окно. Двойной удар делает две отдельные атаки и получает перезарядку 5 ходов. Лечение восстанавливает 5 HP и получает перезарядку 5 ходов. Предмет использует одну лечебную траву и восстанавливает 3 HP. Боевые действия блокируются на время анимации хода.
+
+Боевая сцена использует полноэкранный `battle-castle-corridor.png` без внешней карточки-рамки; спрайты героя и скелета размещаются поверх сцены.
 
 ### Фон
 
@@ -224,7 +234,7 @@ src/style.css
 | Фон не двигается | `animation` в `body::before`, `@keyframes background-float`, трансформацию `scale/translate` |
 | Музыка не звучит | autoplay-блокировку, `MENU_MUSIC_SOURCE` или `BATTLE_MUSIC_SOURCE`, интернет, `musicVolume` |
 | В конце музыки слышна пауза | используется ли loop-версия `Our-Mountain_v003_Looping.mp3` или loop-трек боя |
-| Бой не обновляется | `battleState`, `handleBattleAction()`, `enemyTurn()`, выбранный `data-battle-action` |
+| Бой не обновляется | `battleState`, `handleBattleAction()`, `animateEnemyTurn()`, выбранный `data-battle-action` |
 | Нет боевого эффекта | соответствующий файл `battle-*.wav`, `playBattleSound()`, `buttonSoundVolume` |
 | Журнал боя прокручивается | `overflow: hidden` и `LOG_LIMIT` в `src/main.ts` |
 | Нет звука кнопок | выбранный `ButtonSound`, путь в `BUTTON_SOUND_FILES`, `buttonSoundVolume`, наличие WAV |
