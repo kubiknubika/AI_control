@@ -24,22 +24,22 @@ body {
   cursor: url('/assets/cursor-default.svg') 4 2, default;
 }
 
-#background-layer,
-#background-overlay {
+body::before,
+body::after {
   position: fixed;
+  z-index: 0;
+  content: "";
   pointer-events: none;
 }
 
-#background-layer {
-  z-index: 0;
+body::before {
   inset: -6%;
   background: url('/assets/menu-fantasy-background.png') center / cover no-repeat;
   transform: scale(1.08);
   animation: background-float 18s ease-in-out infinite alternate;
 }
 
-#background-overlay {
-  z-index: 1;
+body::after {
   inset: 0;
   background:
     linear-gradient(180deg, rgb(2 6 23 / 36%), rgb(2 6 23 / 58%)),
@@ -48,7 +48,7 @@ body {
 
 #app {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   min-height: 100vh;
 }
 
@@ -179,14 +179,23 @@ h1 {
   background: rgb(15 23 42 / 48%);
 }
 
+.setting-row,
+.setting-range-row {
+  min-height: 68px;
+  padding: 14px 16px;
+}
+
 .setting-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
-  min-height: 68px;
-  padding: 14px 16px;
   cursor: url('/assets/cursor-pointer.svg') 7 3, pointer;
+}
+
+.setting-range-row {
+  display: grid;
+  gap: 10px;
 }
 
 .setting-copy {
@@ -222,9 +231,7 @@ h1 {
   box-shadow: 0 0 0 2px rgb(96 165 250 / 22%);
 }
 
-.setting-range-row {
-  padding: 14px 16px 16px;
-}
+
 
 .setting-range-heading {
   display: flex;
