@@ -467,8 +467,23 @@ function renderTest2(): void {
         stack && stack.id === 'demons' ? 'is-demons' : '',
         stack && test2State.selected === stack.id ? 'is-selected' : '',
         isDeath ? 'is-death' : '',
-      ].filter(Boolean).join(' ');
+      ];
       const [centerX, centerY] = test2HexCenter(x, y);
+      const attack = test2State.attackAnimation;
+      let cellStyle = '';
+      if (attack && stack?.id === attack.attacker) {
+        const [attackerX, attackerY] = test2HexCenter(test2State.stacks[attack.attacker].x, test2State.stacks[attack.attacker].y);
+        const [targetX, targetY] = test2HexCenter(test2State.stacks[attack.target].x, test2State.stacks[attack.target].y);
+        const distance = Math.max(0.001, Math.hypot(targetX - attackerX, targetY - attackerY));
+        classes.push('is-attack-attacker');
+        cellStyle = ` style="--attack-x: ${((targetX - attackerX) / distance * 0.26).toFixed(3)}px; --attack-y: ${((targetY - attackerY) / distance * 0.26).toFixed(3)}px;"`;
+      } else if (attack && stack?.id === attack.target) {
+        const [attackerX, attackerY] = test2HexCenter(test2State.stacks[attack.attacker].x, test2State.stacks[attack.attacker].y);
+        const [targetX, targetY] = test2HexCenter(test2State.stacks[attack.target].x, test2State.stacks[attack.target].y);
+        const distance = Math.max(0.001, Math.hypot(targetX - attackerX, targetY - attackerY));
+        classes.push('is-attack-target');
+        cellStyle = ` style="--recoil-x: ${((attackerX - targetX) / distance * 0.1).toFixed(3)}px; --recoil-y: ${((attackerY - targetY) / distance * 0.1).toFixed(3)}px;"`;
+      }
       const points = Array.from({ length: 6 }, (_, index) => {
         const angle = Math.PI / 6 + (Math.PI / 3) * index;
         return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
@@ -528,11 +543,27 @@ function renderTest2(): void {
       const healthFrom = healthAnimation && stack && stack.maxHealth > 0
         ? Math.max(0, Math.min(1, healthAnimation.from / stack.maxHealth))
         : healthTo;
+      const divisionBase = stack
+        ? Math.max(1, casualtyAnimation?.fromCount ?? (stack.count > 0 ? stack.count : healthAnimation ? Math.ceil(healthAnimation.from / stack.unitHealth) : 1))
+        : 1;
+      const divisionSize = test2HealthDivisionSize(divisionBase);
+      const divisionCount = Math.max(1, Math.ceil(divisionBase / divisionSize));
+      const healthTicks = Array.from({ length: Math.max(0, divisionCount - 1) }, (_, index) => {
+        const position = centerX - 0.45 + 0.9 * ((index + 1) / divisionCount);
+        return `<line x1="${position}" y1="${centerY - 0.9}" x2="${position}" y2="${centerY - 0.8}"></line>`;
+      }).join('');
       const healthBarMarkup = stack
         ? `<g class="hex-svg-health" aria-label="Здоровье отряда ${Math.round(stack.health)} из ${stack.maxHealth}">
             <rect class="hex-svg-health-bg" x="${centerX - 0.45}" y="${centerY - 0.9}" width="0.9" height="0.1" rx="0.04"></rect>
             <rect class="hex-svg-health-fill${healthAnimation ? ' is-animating' : ''}" x="${centerX - 0.45}" y="${centerY - 0.9}" width="0.9" height="0.1" rx="0.04" style="--health-from: ${healthFrom}; --health-to: ${healthTo};"></rect>
+            <g class="hex-svg-health-ticks">${healthTicks}</g>
           </g>`
+        : '';
+      const damageAnimation = stack && test2State.healthAnimation?.faction === stack.id && test2State.attackAnimation?.target === stack.id
+        ? test2State.healthAnimation
+        : null;
+      const damageMarkup = damageAnimation
+        ? `<text class="hex-damage-number" x="${centerX + 0.42}" y="${centerY - 0.5}">-${damageAnimation.damage}</text>`
         : '';
       const unitMarkup = stack
         ? `<g class="hex-svg-unit" data-test2-unit="${stack.id}">
@@ -552,48 +583,17 @@ function renderTest2(): void {
           </g>`
         : '';
 
-      return `<g class="${classes}" data-hex-x="${x}" data-hex-y="${y}" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
+      return `<g class="${classes.filter(Boolean).join(' ')}"${cellStyle} data-hex-x="${x}" data-hex-y="${y}" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
         <polygon points="${points}"></polygon>
         ${unitMarkup}
         ${healthBarMarkup}
+        ${damageMarkup}
         ${tooltipMarkup}
       </g>`;
     }).join('')).join('');
-    const attackMarkup = (() => {
-      const attack = test2State.attackAnimation;
-      if (!attack) {
-        return '';
-      }
-
-      const attacker = test2State.stacks[attack.attacker];
-      const target = test2State.stacks[attack.target];
-      const [attackerX, attackerY] = test2HexCenter(attacker.x, attacker.y);
-      const [targetX, targetY] = test2HexCenter(target.x, target.y);
-      const label = attack.attacker === 'knights' ? 'Рыцари → Демоны' : 'Демоны → Рыцари';
-      const damageAnimation = test2State.healthAnimation?.faction === attack.target
-        ? test2State.healthAnimation
-        : null;
-      const damageMarkup = damageAnimation
-        ? `<text class="hex-damage-number" x="${targetX + 0.42}" y="${targetY - 0.5}">-${damageAnimation.damage}</text>`
-        : '';
-      return `<g class="hex-attack-indicator ${attack.phase}" pointer-events="none">
-        <defs>
-          <marker id="test2-attack-arrow" markerWidth="0.28" markerHeight="0.28" refX="0.22" refY="0.14" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0 0L0.28 0.14L0 0.28Z"></path>
-          </marker>
-        </defs>
-        <line class="hex-attack-line" x1="${attackerX}" y1="${attackerY}" x2="${targetX}" y2="${targetY}" marker-end="url(#test2-attack-arrow)"></line>
-        <circle class="hex-attack-ring attacker" cx="${attackerX}" cy="${attackerY}" r="0.78"></circle>
-        <circle class="hex-attack-ring target" cx="${targetX}" cy="${targetY}" r="0.78"></circle>
-        <text class="hex-attack-label" x="${(attackerX + targetX) / 2}" y="${(attackerY + targetY) / 2 - 0.28}">${label}</text>
-        ${damageMarkup}
-      </g>`;
-    })();
-
     return `<div class="hex-board">
       <svg class="test2-hex-svg" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" role="grid" aria-label="Гексовое поле 12 на 6">
         ${cells}
-        ${attackMarkup}
       </svg>
     </div>`;
   })();
@@ -609,12 +609,11 @@ function renderTest2(): void {
     || test2State.playerBusy
     ? ' disabled'
     : '';
-  const attackOwnerClass = test2State.attackAnimation
-    ? test2State.attackAnimation.attacker === 'knights' ? ' is-player-attack' : ' is-ai-attack'
-    : '';
-  const animationClass = attackOwnerClass
-    || (test2State.aiBusy && test2State.aiAnimation ? ` is-ai-${test2State.aiAnimation}` : '')
-    || (test2State.playerBusy && test2State.playerAnimation ? ` is-player-${test2State.playerAnimation}` : '');
+  const animationClass = test2State.aiBusy && test2State.aiAnimation === 'move'
+    ? ' is-ai-move'
+    : test2State.playerBusy && test2State.playerAnimation === 'move'
+      ? ' is-player-move'
+      : '';
   const knights = test2State.stacks.knights;
   const healAmount = test2HealPreview();
   const healPreview = knights.abilityUsed ? '0/1 · +0 HP' : `+${healAmount} HP`;
@@ -725,6 +724,15 @@ function test2FormationScale(): number {
     return 0.26;
   }
   return 0.3;
+}
+
+function test2HealthDivisionSize(count: number): number {
+  if (count < 10) {
+    return 1;
+  }
+
+  const magnitude = 10 ** Math.floor(Math.log10(count));
+  return count < magnitude * 5 ? magnitude / 2 : magnitude;
 }
 
 function test2StackAt(x: number, y: number): Test2Stack | null {
