@@ -60,6 +60,10 @@ const TEST3_INITIAL_WORKERS = 3;
 const TEST3_MAX_BUILDING_LEVEL = 3;
 const TEST3_ARMY_RECRUIT_GOLD = 80;
 const TEST3_ARMY_RECRUIT_WOOD = 50;
+const TEST3_IDLE_WORKER_GOLD = 1;
+const TEST3_IDLE_WORKER_WOOD = 3;
+const TEST3_TOWN_HALL_GOLD = 4;
+const TEST3_TOWN_HALL_WOOD = 4;
 
 interface Test3Tile {
   kind: Test3Terrain;
@@ -509,6 +513,7 @@ function createTest3State(): Test3State {
     log: [
       'Поселение готово. Выберите постройку в нижней панели.',
       'Рудник ставится только на золото, лесопилка — прямо на деревья.',
+      'Свободные рабочие собирают аварийный доход, поэтому поселение не окажется без ресурсов.'
     ],
   };
 }
@@ -620,33 +625,11 @@ function test3CanPlace(type: Test3BuildingType, x: number, y: number): { valid: 
   return { valid: true, reason: 'Можно строить' };
 }
 
-function test3FindPlacementAnchor(type: Test3BuildingType, x: number, y: number): { x: number; y: number } | null {
+function test3PreviewAnchor(type: Test3BuildingType, x: number, y: number): { x: number; y: number } {
   const definition = TEST3_BUILDING_DEFINITIONS[type];
-  const candidates: Array<{ x: number; y: number; distance: number }> = [];
-  for (let anchorY = 0; anchorY <= TEST3_HEIGHT - definition.height; anchorY += 1) {
-    for (let anchorX = 0; anchorX <= TEST3_WIDTH - definition.width; anchorX += 1) {
-      const placement = test3CanPlace(type, anchorX, anchorY);
-      if (!placement.valid) {
-        continue;
-      }
-      const coversCell = x >= anchorX
-        && x < anchorX + definition.width
-        && y >= anchorY
-        && y < anchorY + definition.height;
-      if (coversCell) {
-        const centerX = anchorX + (definition.width - 1) / 2;
-        const centerY = anchorY + (definition.height - 1) / 2;
-        candidates.push({
-          x: anchorX,
-          y: anchorY,
-          distance: Math.hypot(centerX - x, centerY - y),
-        });
-      }
-    }
-  }
-  candidates.sort((left, right) => left.distance - right.distance);
-  const candidate = candidates[0];
-  return candidate ? { x: candidate.x, y: candidate.y } : null;
+  const anchorX = Math.max(0, Math.min(TEST3_WIDTH - definition.width, x - Math.floor(definition.width / 2)));
+  const anchorY = Math.max(0, Math.min(TEST3_HEIGHT - definition.height, y - Math.floor(definition.height / 2)));
+  return { x: anchorX, y: anchorY };
 }
 
 function test3UpgradeCosts(building: Test3Building): { gold: number; wood: number; time: number } {
@@ -719,9 +702,9 @@ function test3PlaceBuilding(x: number, y: number): void {
     return;
   }
   const definition = TEST3_BUILDING_DEFINITIONS[type];
-  const anchor = test3FindPlacementAnchor(type, x, y);
-  if (!anchor) {
-    const placement = test3CanPlace(type, x, y);
+  const anchor = test3PreviewAnchor(type, x, y);
+  const placement = test3CanPlace(type, anchor.x, anchor.y);
+  if (!placement.valid) {
     test3AddLog(`${definition.label}: ${placement.reason}.`);
     render('test3');
     return;
@@ -949,6 +932,16 @@ function test3Tick(): void {
   test3State.elapsed += 1;
   let goldIncome = 0;
   let woodIncome = 0;
+  const idleWorkers = test3State.workers.filter((worker) => worker.status === 'idle').length;
+  const completedTownHalls = test3State.buildings.filter((building) => building.complete && building.type === 'townHall').length;
+  const fallbackGold = idleWorkers * TEST3_IDLE_WORKER_GOLD + completedTownHalls * TEST3_TOWN_HALL_GOLD;
+  const fallbackWood = idleWorkers * TEST3_IDLE_WORKER_WOOD + completedTownHalls * TEST3_TOWN_HALL_WOOD;
+  const goldBeforeFallback = test3State.resources.gold;
+  const woodBeforeFallback = test3State.resources.wood;
+  test3State.resources.gold = Math.min(test3State.resourceCap, test3State.resources.gold + fallbackGold);
+  test3State.resources.wood = Math.min(test3State.resourceCap, test3State.resources.wood + fallbackWood);
+  goldIncome += test3State.resources.gold - goldBeforeFallback;
+  woodIncome += test3State.resources.wood - woodBeforeFallback;
   test3State.buildings.forEach((building) => {
     const definition = TEST3_BUILDING_DEFINITIONS[building.type];
     if (!building.complete) {
@@ -1235,38 +1228,44 @@ function renderTest3(): void {
     ? test3State.buildings.find((building) => building.id === test3State.selectedBuildingId) ?? null
     : null;
   const completedBuildings = test3State.buildings.filter((building) => building.complete);
-  const incomeGold = completedBuildings
-    .filter((building) => building.type === 'goldMine' && building.workerId)
-    .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
-  const incomeWood = completedBuildings
-    .filter((building) => building.type === 'sawmill' && building.workerId)
-    .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
+  const idleWorkers = test3State.workers.filter((worker) => worker.status === 'idle').length;
+  const completedTownHalls = completedBuildings.filter((building) => building.type === 'townHall').length;
+  const incomeGold = idleWorkers * TEST3_IDLE_WORKER_GOLD
+    + completedTownHalls * TEST3_TOWN_HALL_GOLD
+    + completedBuildings
+      .filter((building) => building.type === 'goldMine' && building.workerId)
+      .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
+  const incomeWood = idleWorkers * TEST3_IDLE_WORKER_WOOD
+    + completedTownHalls * TEST3_TOWN_HALL_WOOD
+    + completedBuildings
+      .filter((building) => building.type === 'sawmill' && building.workerId)
+      .reduce((total, building) => total + test3ProductionAmount(building) / 2, 0);
   const occupiedWorkers = test3State.workers.filter((worker) => worker.status !== 'idle').length;
-  const ghostAnchor = buildMode && test3State.hoveredTile && test3State.selectedBuildingType
-    ? test3FindPlacementAnchor(test3State.selectedBuildingType, test3State.hoveredTile.x, test3State.hoveredTile.y)
+  const previewAnchor = buildMode && test3State.hoveredTile && test3State.selectedBuildingType
+    ? test3PreviewAnchor(test3State.selectedBuildingType, test3State.hoveredTile.x, test3State.hoveredTile.y)
+    : null;
+  const previewPlacement = previewAnchor && test3State.selectedBuildingType
+    ? test3CanPlace(test3State.selectedBuildingType, previewAnchor.x, previewAnchor.y)
     : null;
   const mapTiles = Array.from({ length: TEST3_HEIGHT }, (_, y) => Array.from({ length: TEST3_WIDTH }, (_, x) => {
     const tile = test3TileAt(x, y) as Test3Tile;
     const building = test3BuildingAt(x, y);
-    const previewAnchor = test3State.selectedBuildingType
-      ? test3FindPlacementAnchor(test3State.selectedBuildingType, x, y)
-      : null;
-    const isGhostCell = Boolean(
-      ghostAnchor
+    const isPreviewCell = Boolean(
+      previewAnchor
       && test3State.selectedBuildingType
-      && x >= ghostAnchor.x
-      && x < ghostAnchor.x + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].width
-      && y >= ghostAnchor.y
-      && y < ghostAnchor.y + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].height,
+      && x >= previewAnchor.x
+      && x < previewAnchor.x + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].width
+      && y >= previewAnchor.y
+      && y < previewAnchor.y + TEST3_BUILDING_DEFINITIONS[test3State.selectedBuildingType].height,
     );
     const classes = [
       'test3-tile',
       `is-${tile.kind}`,
       tile.kind === 'tree' || tile.kind === 'gold' ? 'is-resource-node' : '',
       building ? 'has-building' : '',
-      previewAnchor ? 'is-build-valid' : '',
-      buildMode && !previewAnchor ? 'is-build-invalid' : '',
-      isGhostCell ? 'is-build-ghost' : '',
+      isPreviewCell && previewPlacement?.valid ? 'is-build-valid' : '',
+      isPreviewCell && previewPlacement && !previewPlacement.valid ? 'is-build-invalid' : '',
+      isPreviewCell ? 'is-build-ghost' : '',
     ].filter(Boolean).join(' ');
     const terrainLabel = tile.kind === 'tree'
       ? 'Дерево'
@@ -1280,11 +1279,12 @@ function renderTest3(): void {
     </button>`;
   })).flat().join('');
 
-  const ghostMarkup = ghostAnchor && test3State.selectedBuildingType && selectedDefinition
-    ? `<div class="test3-building test3-building-ghost test3-building-${test3State.selectedBuildingType}" style="grid-column: ${ghostAnchor.x + 1} / span ${selectedDefinition.width}; grid-row: ${ghostAnchor.y + 1} / span ${selectedDefinition.height};" aria-hidden="true">
+  const ghostValidityClass = previewPlacement?.valid ? ' is-valid' : ' is-invalid';
+  const ghostMarkup = previewAnchor && test3State.selectedBuildingType && selectedDefinition && previewPlacement
+    ? `<div class="test3-building test3-building-ghost${ghostValidityClass} test3-building-${test3State.selectedBuildingType}" style="grid-column: ${previewAnchor.x + 1} / span ${selectedDefinition.width}; grid-row: ${previewAnchor.y + 1} / span ${selectedDefinition.height};" aria-hidden="true">
         <span class="test3-building-icon">${selectedDefinition.icon}</span>
         <strong>${selectedDefinition.label}</strong>
-        <small>Предпросмотр ${selectedDefinition.width}×${selectedDefinition.height}</small>
+        <small>${previewPlacement.valid ? `Предпросмотр ${selectedDefinition.width}×${selectedDefinition.height}` : previewPlacement.reason}</small>
       </div>`
     : '';
   const buildingMarkup = test3State.buildings.map((building) => {
@@ -1371,7 +1371,7 @@ function renderTest3(): void {
       : `<div class="test3-selection-info">
           <span class="test3-selection-kicker">Совет управляющего</span>
           <strong>Сначала экономика, потом ратуша</strong>
-          <small>Поставьте рудник на золотую жилу и лесопилку на дереве. После завершения они сами назначат рабочих; дома освобождают строителя.</small>
+          <small>Поставьте рудник на золотую жилу и лесопилку на дереве. После завершения они сами назначат рабочих; дома освобождают строителя. Свободные рабочие и ратуша дают небольшой аварийный доход.</small>
           <span class="test3-selection-note">Сетка появится только после выбора постройки.</span>
         </div>`;
 
@@ -1398,7 +1398,7 @@ function renderTest3(): void {
   const logMarkup = test3State.log.map((entry) => `<li>${entry}</li>`).join('');
   const mapClass = buildMode ? ' is-build-mode' : '';
   const mapHint = buildMode
-    ? `Размещение: <strong>${selectedDefinition?.label}</strong> · зелёные клетки доступны`
+    ? `Размещение: <strong>${selectedDefinition?.label}</strong> · наведите курсор, чтобы увидеть точный ${selectedDefinition?.width}×${selectedDefinition?.height} участок`
     : 'Карта поселения · клеточная разметка скрыта';
 
   app.innerHTML = `

@@ -2052,6 +2052,16 @@ h1 {
   box-shadow: inset 0 0 0 999px rgb(250 204 21 / 14%);
 }
 
+.test3-map-wrap.is-build-mode .test3-tile.is-build-ghost.is-build-valid {
+  background-color: rgb(22 101 52 / 70%);
+  box-shadow: inset 0 0 0 999px rgb(34 197 94 / 18%), 0 0 0 1px rgb(250 204 21 / 65%);
+}
+
+.test3-map-wrap.is-build-mode .test3-tile.is-build-ghost.is-build-invalid {
+  background-color: rgb(127 29 29 / 70%);
+  box-shadow: inset 0 0 0 999px rgb(239 68 68 / 18%), 0 0 0 1px rgb(250 204 21 / 55%);
+}
+
 .test3-grass-mark {
   position: absolute;
   inset: 35% 35% 30%;
@@ -2252,6 +2262,18 @@ h1 {
   background: rgb(161 98 7 / 36%);
   box-shadow: 0 0 0 2px rgb(250 204 21 / 22%), inset 0 0 20px rgb(250 204 21 / 18%);
   opacity: 0.8;
+}
+
+.test3-building-ghost.is-valid {
+  border-color: #bbf7d0;
+  background: rgb(22 101 52 / 52%);
+  box-shadow: 0 0 0 2px rgb(134 239 172 / 32%), inset 0 0 20px rgb(34 197 94 / 22%);
+}
+
+.test3-building-ghost.is-invalid {
+  border-color: #fecaca;
+  background: rgb(127 29 29 / 56%);
+  box-shadow: 0 0 0 2px rgb(248 113 113 / 30%), inset 0 0 20px rgb(239 68 68 / 22%);
 }
 
 .test3-building.is-upgrading {
