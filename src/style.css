@@ -1794,7 +1794,7 @@ h1 {
 
 .test3-resource-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 10px;
   padding: 10px;
   border: 1px solid rgb(148 163 184 / 28%);
@@ -1822,6 +1822,28 @@ h1 {
   border-radius: 8px;
   font-size: 18px;
   font-weight: 900;
+}
+
+.test3-ui-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: rgb(248 250 252 / 12%);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.test3-build-cost .test3-ui-icon,
+.test3-selection-action .test3-ui-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 2px;
+  vertical-align: -2px;
+  fill: rgb(248 250 252 / 12%);
+  stroke-width: 2;
 }
 
 .test3-resource > span:nth-child(2) {
@@ -1877,6 +1899,34 @@ h1 {
   background: rgb(21 128 61 / 30%);
 }
 
+.test3-resource-stone {
+  border-color: rgb(148 163 184 / 48%);
+}
+
+.test3-resource-stone .test3-resource-icon,
+.test3-build-cost .is-stone {
+  color: #e2e8f0;
+  background: rgb(71 85 105 / 48%);
+}
+
+.test3-resource-food {
+  border-color: rgb(251 146 60 / 42%);
+}
+
+.test3-resource-food .test3-resource-icon {
+  color: #fed7aa;
+  background: rgb(154 52 18 / 38%);
+}
+
+.test3-resource-fleet {
+  border-color: rgb(56 189 248 / 40%);
+}
+
+.test3-resource-fleet .test3-resource-icon {
+  color: #bae6fd;
+  background: rgb(3 105 161 / 38%);
+}
+
 .test3-resource-workers {
   border-color: rgb(96 165 250 / 34%);
 }
@@ -1897,7 +1947,7 @@ h1 {
 
 .test3-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 278px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-top: 16px;
 }
@@ -2025,6 +2075,10 @@ h1 {
 
 .test3-tile.is-gold {
   background: linear-gradient(140deg, #713f12, #854d0e 45%, #57534e);
+}
+
+.test3-tile.is-stone {
+  background: linear-gradient(140deg, #334155, #64748b 48%, #1e293b);
 }
 
 .test3-map-wrap.is-build-mode .test3-tile {
@@ -2166,6 +2220,41 @@ h1 {
   transform: rotate(35deg);
 }
 
+.test3-stone-deposit i,
+.test3-stone-deposit b,
+.test3-stone-deposit em {
+  position: absolute;
+  display: block;
+  border: 1px solid rgb(226 232 240 / 48%);
+  border-radius: 40% 58% 46% 55%;
+  background: linear-gradient(145deg, #cbd5e1, #64748b 65%, #334155);
+  box-shadow: inset -2px -2px 0 rgb(15 23 42 / 30%), 0 0 5px rgb(148 163 184 / 32%);
+  transform: rotate(-16deg);
+}
+
+.test3-stone-deposit i {
+  top: 22%;
+  left: 20%;
+  width: 32%;
+  height: 32%;
+}
+
+.test3-stone-deposit b {
+  top: 41%;
+  left: 45%;
+  width: 34%;
+  height: 32%;
+  transform: rotate(18deg);
+}
+
+.test3-stone-deposit em {
+  top: 56%;
+  left: 17%;
+  width: 27%;
+  height: 22%;
+  transform: rotate(32deg);
+}
+
 .test3-water-mark i,
 .test3-water-mark b {
   position: absolute;
@@ -2263,6 +2352,18 @@ h1 {
   background: linear-gradient(145deg, #991b1b, #450a0a);
 }
 
+.test3-building-quarry {
+  background: linear-gradient(145deg, #64748b, #334155);
+}
+
+.test3-building-shipyard {
+  background: linear-gradient(145deg, #0369a1, #0c4a6e);
+}
+
+.test3-building-fishingYard {
+  background: linear-gradient(145deg, #0891b2, #164e63);
+}
+
 .test3-building-ghost {
   z-index: 4;
   margin: 2px;
@@ -2292,10 +2393,29 @@ h1 {
 }
 
 .test3-building-icon {
+  display: grid;
+  width: clamp(18px, 3vw, 34px);
+  height: clamp(18px, 3vw, 34px);
+  place-items: center;
   color: #fef3c7;
-  font-size: clamp(13px, 2vw, 25px);
   line-height: 1;
   text-shadow: 0 2px 4px rgb(0 0 0 / 42%);
+}
+
+.test3-icon-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: rgb(254 243 199 / 16%);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.test3-icon-svg path {
+  vector-effect: non-scaling-stroke;
 }
 
 .test3-building strong {
@@ -2378,6 +2498,14 @@ h1 {
   background: #eab308;
 }
 
+.test3-map-legend i.is-stone {
+  background: #94a3b8;
+}
+
+.test3-map-legend i.is-water {
+  background: #0284c7;
+}
+
 .test3-map-legend i.is-building {
   background: #64748b;
 }
@@ -2408,6 +2536,14 @@ h1 {
 .test3-selection-info strong {
   color: #f8fafc;
   font-size: 14px;
+}
+
+.test3-selection-info > strong .test3-icon-svg {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  vertical-align: middle;
 }
 
 .test3-selection-info small,
@@ -2678,12 +2814,20 @@ h1 {
 }
 
 @media (max-width: 1120px) {
+  .test3-resource-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .test3-build-menu {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 860px) {
+  .test3-resource-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .test3-layout {
     grid-template-columns: 1fr;
   }
