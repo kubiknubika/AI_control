@@ -7,6 +7,7 @@ import {
 } from './audio';
 
 type Screen = 'menu' | 'play' | 'tests' | 'difficulty' | 'testBattle' | 'test2' | 'test3' | 'settings';
+type LoadingKind = 'initial' | 'tests';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'impossible';
 type Test2Faction = 'knights' | 'demons';
 type Test3Terrain = 'grass' | 'tree' | 'gold' | 'stone' | 'water' | 'rock';
@@ -32,6 +33,36 @@ type BattleAnimation =
 type BattleLogType = 'system' | 'player' | 'enemy' | 'miss' | 'heal' | 'item' | 'victory' | 'defeat';
 type BattleAction = 'attack' | 'skill-menu' | 'magic-menu' | 'double-strike' | 'heal' | 'item' | 'close-menu';
 type Settings = AudioSettings;
+
+interface LoadingAsset {
+  src: string;
+  kind: 'image' | 'audio';
+}
+
+const CORE_LOADING_ASSETS: LoadingAsset[] = [
+  { src: '/assets/menu-fantasy-background.png', kind: 'image' },
+  { src: '/assets/cursor-default.svg', kind: 'image' },
+  { src: '/assets/cursor-pointer.svg', kind: 'image' },
+  { src: '/audio/button-soft.wav', kind: 'audio' },
+  { src: '/audio/button-arcane.wav', kind: 'audio' },
+  { src: '/audio/button-stone.wav', kind: 'audio' },
+  { src: '/audio/button-metal.wav', kind: 'audio' },
+  { src: '/audio/button-rune.wav', kind: 'audio' },
+];
+
+const TEST_LOADING_ASSETS: LoadingAsset[] = [
+  ...CORE_LOADING_ASSETS,
+  { src: '/assets/battle-castle-corridor.png', kind: 'image' },
+  { src: '/assets/player-adventurer.png', kind: 'image' },
+  { src: '/assets/skeleton-warrior.png', kind: 'image' },
+  { src: '/audio/battle-defeat.wav', kind: 'audio' },
+  { src: '/audio/battle-double.wav', kind: 'audio' },
+  { src: '/audio/battle-hit.wav', kind: 'audio' },
+  { src: '/audio/battle-item.wav', kind: 'audio' },
+  { src: '/audio/battle-magic.wav', kind: 'audio' },
+  { src: '/audio/battle-miss.wav', kind: 'audio' },
+  { src: '/audio/battle-victory.wav', kind: 'audio' },
+];
 
 const MIN_VOLUME = 0;
 const MAX_VOLUME = 100;
@@ -433,6 +464,8 @@ let battleState = createBattleState();
 let test2State = createTest2State();
 let test3State = createTest3State();
 let test3Timer: number | null = null;
+let loadingRequestId = 0;
+let loadingActive = false;
 
 function getSelectedDifficulty(): Difficulty {
   return selectedDifficulty ?? 'normal';
@@ -1167,7 +1200,7 @@ function test3DemolishBuilding(): void {
 }
 
 function test3Tick(): void {
-  if (activeScreen !== 'test3') {
+  if (activeScreen !== 'test3' || loadingActive) {
     return;
   }
 
@@ -1337,6 +1370,138 @@ function isBattleAction(value: unknown): value is BattleAction {
 
 function applySettings(): void {
   audioManager.setSettings(settings);
+}
+
+function waitForLoadingAsset(asset: LoadingAsset): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 2500);
+
+    if (asset.kind === 'image') {
+      const image = new Image();
+      image.onload = () => {
+        if (typeof image.decode === 'function') {
+          void image.decode().catch(() => undefined).then(finish);
+        } else {
+          finish();
+        }
+      };
+      image.onerror = finish;
+      image.src = asset.src;
+      return;
+    }
+
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.oncanplaythrough = finish;
+    audio.onloadeddata = finish;
+    audio.onerror = finish;
+    audio.src = asset.src;
+    audio.load();
+  });
+}
+
+function renderLoadingScreen(kind: LoadingKind, target: Screen, loaded: number, total: number): void {
+  const progress = total > 0 ? Math.round((loaded / total) * 100) : 100;
+  const isInitial = kind === 'initial';
+  const title = isInitial
+    ? 'Загрузка мира'
+    : target === 'tests'
+      ? 'Подготовка тестов'
+      : 'Загрузка тестовой сцены';
+  const subtitle = isInitial
+    ? 'Подготавливаем меню, звуки и игровые ресурсы.'
+    : 'Проверяем графику, звуки и окружение перед запуском механики.';
+  const status = progress >= 100 ? 'Готово' : 'Загрузка ресурсов';
+  app.innerHTML = `
+    <main class="loading-screen ${isInitial ? 'is-initial-load' : 'is-test-load'}" aria-live="polite" aria-busy="${progress < 100}">
+      <section class="loading-card">
+        <div class="loading-emblem" aria-hidden="true">
+          <svg viewBox="0 0 64 64" focusable="false">
+            <path d="M32 5 52 13v15c0 14-8 24-20 31C20 52 12 42 12 28V13l20-8Z"/>
+            <path d="M32 16v30M20 25h24M23 40h18"/>
+          </svg>
+        </div>
+        <p class="eyebrow">AI Control · ${isInitial ? 'Инициализация' : 'Тестовый контур'}</p>
+        <h1>${title}</h1>
+        <p class="loading-subtitle">${subtitle}</p>
+        <div class="loading-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
+          <i style="width: ${progress}%"></i>
+        </div>
+        <div class="loading-status"><span>${status}</span><strong>${progress}%</strong></div>
+        <small class="loading-details">Подготовлено ${loaded} из ${total} ресурсов</small>
+        <div class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      </section>
+    </main>
+  `;
+}
+
+function prepareLoadedScreen(screen: Screen): void {
+  loadingActive = false;
+  if (screen === 'test2') {
+    test2State = createTest2State();
+    audioManager.startBattleMusic();
+    render('test2');
+    return;
+  }
+  if (screen === 'test3') {
+    test3State = createTest3State();
+    audioManager.startBattleMusic();
+    startTest3Loop();
+    render('test3');
+    return;
+  }
+  if (screen === 'testBattle') {
+    audioManager.startBattleMusic();
+    render('testBattle');
+    return;
+  }
+  if (screen !== 'menu') {
+    audioManager.startMusic();
+  }
+  render(screen);
+}
+
+function beginLoading(screen: Screen, kind: LoadingKind): void {
+  const requestId = loadingRequestId + 1;
+  loadingRequestId = requestId;
+  loadingActive = true;
+  activeScreen = screen;
+  stopTest3Loop();
+  const assets = kind === 'initial' ? CORE_LOADING_ASSETS : TEST_LOADING_ASSETS;
+  renderLoadingScreen(kind, screen, 0, assets.length);
+  const startedAt = performance.now();
+  let loaded = 0;
+  const assetPromises = assets.map((asset) => waitForLoadingAsset(asset).then(() => {
+    loaded += 1;
+    if (requestId === loadingRequestId) {
+      renderLoadingScreen(kind, screen, loaded, assets.length);
+    }
+  }));
+  const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+  void Promise.all([Promise.all(assetPromises), fontsReady]).then(() => {
+    const minimumDuration = kind === 'initial' ? 650 : 450;
+    const remaining = Math.max(0, minimumDuration - (performance.now() - startedAt));
+    window.setTimeout(() => {
+      if (requestId !== loadingRequestId) {
+        return;
+      }
+      renderLoadingScreen(kind, screen, assets.length, assets.length);
+      window.setTimeout(() => {
+        if (requestId === loadingRequestId) {
+          prepareLoadedScreen(screen);
+        }
+      }, 120);
+    }, remaining);
+  });
 }
 
 function render(screen: Screen): void {
@@ -3335,8 +3500,7 @@ app.addEventListener('click', (event: MouseEvent) => {
   if (isDifficulty(button.dataset.difficulty)) {
     selectedDifficulty = button.dataset.difficulty;
     battleState = createBattleState();
-    audioManager.startBattleMusic();
-    render('testBattle');
+    beginLoading('testBattle', 'tests');
     return;
   }
 
@@ -3350,18 +3514,8 @@ app.addEventListener('click', (event: MouseEvent) => {
   const nextScreen = button.dataset.screen as Screen | undefined;
 
   if (nextScreen) {
-    if (nextScreen === 'test2') {
-      test2State = createTest2State();
-      audioManager.startBattleMusic();
-      render('test2');
-      return;
-    }
-
-    if (nextScreen === 'test3') {
-      test3State = createTest3State();
-      audioManager.startBattleMusic();
-      startTest3Loop();
-      render('test3');
+    if (nextScreen === 'tests' || nextScreen === 'difficulty' || nextScreen === 'test2' || nextScreen === 'test3') {
+      beginLoading(nextScreen, 'tests');
       return;
     }
 
@@ -3442,4 +3596,4 @@ window.addEventListener('resize', () => {
 });
 
 applySettings();
-render('menu');
+beginLoading('menu', 'initial');
