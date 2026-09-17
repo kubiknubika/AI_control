@@ -1843,6 +1843,12 @@ h1 {
   fill: rgb(148 163 184 / 42%);
 }
 
+.test3-ui-food-loaf,
+.test3-ui-icon .test3-ui-food-loaf {
+  fill: #d97706;
+  stroke: #fed7aa;
+}
+
 .test3-ui-wood-log,
 .test3-ui-icon .test3-ui-wood-log {
   fill: #92400e;
@@ -2481,7 +2487,9 @@ h1 {
 }
 
 .test3-icon-timber,
-.test3-icon-svg .test3-icon-timber {
+.test3-icon-svg .test3-icon-timber,
+.test3-icon-mast,
+.test3-icon-svg .test3-icon-mast {
   fill: none;
   stroke: #c08457;
 }
