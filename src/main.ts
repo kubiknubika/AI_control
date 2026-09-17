@@ -43,6 +43,9 @@ const TEST2_HEAL_PER_KNIGHT = 10;
 const TEST2_XP_PER_DEMON = 25;
 const TEST2_GOLD_PER_DEMON = 12;
 const TEST2_STEP_DELAY = 320;
+const TEST2_ATTACK_WINDUP = 520;
+const TEST2_ATTACK_IMPACT_DELAY = 110;
+const TEST2_HEALTH_ANIMATION_DELAY = 360;
 
 const DEFAULT_SETTINGS: Settings = {
   musicVolume: 38,
@@ -126,6 +129,25 @@ interface Test2DeathAnimation {
   y: number;
 }
 
+interface Test2HealthAnimation {
+  faction: Test2Faction;
+  from: number;
+  to: number;
+  damage: number;
+}
+
+interface Test2AttackAnimation {
+  attacker: Test2Faction;
+  target: Test2Faction;
+  phase: 'windup' | 'impact' | 'counter';
+}
+
+interface Test2CasualtyAnimation {
+  faction: Test2Faction;
+  fromCount: number;
+  toCount: number;
+}
+
 interface Test2State {
   stacks: Record<Test2Faction, Test2Stack>;
   schedule: Test2Faction[];
@@ -138,6 +160,9 @@ interface Test2State {
   playerBusy: boolean;
   playerAnimation: 'move' | 'attack' | null;
   deathAnimation: Test2DeathAnimation | null;
+  healthAnimation: Test2HealthAnimation | null;
+  attackAnimation: Test2AttackAnimation | null;
+  casualtyAnimation: Test2CasualtyAnimation | null;
   summary: Test2Summary | null;
   log: string[];
 }
@@ -250,6 +275,9 @@ function createTest2State(): Test2State {
     playerBusy: false,
     playerAnimation: null,
     deathAnimation: null,
+    healthAnimation: null,
+    attackAnimation: null,
+    casualtyAnimation: null,
     summary: null,
     log: [
       `Инициатива: Рыцари ${knights.initiative}, Демоны ${demons.initiative}.`,
@@ -440,8 +468,7 @@ function renderTest2(): void {
         stack && test2State.selected === stack.id ? 'is-selected' : '',
         isDeath ? 'is-death' : '',
       ].filter(Boolean).join(' ');
-      const centerX = hexWidth / 2 + x * hexWidth + (y % 2 === 1 ? hexWidth / 2 : 0);
-      const centerY = 1 + y * 1.5;
+      const [centerX, centerY] = test2HexCenter(x, y);
       const points = Array.from({ length: 6 }, (_, index) => {
         const angle = Math.PI / 6 + (Math.PI / 3) * index;
         return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
@@ -465,25 +492,46 @@ function renderTest2(): void {
             <circle class="demon-eye" cx=".1" cy="-.31" r=".035"></circle>
             <path class="demon-claws" d="M-.27 .05L-.58 .35M.27 .05L.58 .35"></path>
           </g>`;
-      const formationCount = stack
-        ? Math.min(Math.max(stack.count, 1), test2FormationRows(Math.max(stack.count, 1)) * 2)
+      const casualtyAnimation = stack && test2State.casualtyAnimation?.faction === stack.id
+        ? test2State.casualtyAnimation
+        : null;
+      const displayCount = stack
+        ? Math.max(stack.count, casualtyAnimation?.fromCount ?? 0, 1)
         : 0;
-      const formationRows = stack ? test2FormationRows(Math.max(stack.count, 1)) : 1;
+      const formationRows = stack ? test2FormationRows(displayCount) : 1;
+      const formationCount = stack ? Math.min(displayCount, formationRows * 3) : 0;
       const formationColumns = Math.max(1, Math.ceil(formationCount / formationRows));
+      const casualtyCutoff = casualtyAnimation ? Math.min(casualtyAnimation.toCount, formationCount) : formationCount;
       const formationScale = test2FormationScale();
       const modelFormationMarkup = stack
         ? Array.from({ length: formationCount }, (_, index) => {
           const row = Math.floor(index / formationColumns);
           const column = index % formationColumns;
-          const offsetX = (column - (formationColumns - 1) / 2) * 0.42;
+          const offsetX = (column - (formationColumns - 1) / 2) * 0.32;
           const offsetY = (row - (formationRows - 1) / 2) * 0.34;
-          return `<g transform="translate(${offsetX.toFixed(3)} ${offsetY.toFixed(3)}) scale(${formationScale})">${modelMarkup}</g>`;
+          const casualtyMarkup = casualtyAnimation && index >= casualtyCutoff
+            ? `<g class="hex-svg-casualty">${modelMarkup}</g>`
+            : modelMarkup;
+          return `<g transform="translate(${offsetX.toFixed(3)} ${offsetY.toFixed(3)}) scale(${formationScale})">${casualtyMarkup}</g>`;
         }).join('')
         : '';
       const countMarkup = !isDeath && stack
         ? `<g class="hex-svg-count" transform="translate(${centerX + 0.57} ${centerY - 0.55})" aria-label="${stack.count} бойцов">
             <circle r="0.23"></circle>
             <text x="0" y="0.06">${stack.count}</text>
+          </g>`
+        : '';
+      const healthAnimation = stack && test2State.healthAnimation?.faction === stack.id
+        ? test2State.healthAnimation
+        : null;
+      const healthTo = stack && stack.maxHealth > 0 ? Math.max(0, Math.min(1, stack.health / stack.maxHealth)) : 0;
+      const healthFrom = healthAnimation && stack && stack.maxHealth > 0
+        ? Math.max(0, Math.min(1, healthAnimation.from / stack.maxHealth))
+        : healthTo;
+      const healthBarMarkup = stack
+        ? `<g class="hex-svg-health" aria-label="Здоровье отряда ${Math.round(stack.health)} из ${stack.maxHealth}">
+            <rect class="hex-svg-health-bg" x="${centerX - 0.45}" y="${centerY - 0.9}" width="0.9" height="0.1" rx="0.04"></rect>
+            <rect class="hex-svg-health-fill${healthAnimation ? ' is-animating' : ''}" x="${centerX - 0.45}" y="${centerY - 0.9}" width="0.9" height="0.1" rx="0.04" style="--health-from: ${healthFrom}; --health-to: ${healthTo};"></rect>
           </g>`
         : '';
       const unitMarkup = stack
@@ -495,24 +543,57 @@ function renderTest2(): void {
         : '';
       const tooltipMarkup = stack && !isDeath
         ? `<g class="hex-svg-tooltip" transform="translate(${Math.max(0, Math.min(viewBoxWidth - 5.9, centerX - 2.95))},0.12)">
-            <rect width="5.9" height="1.78" rx="0.12"></rect>
+            <rect width="5.9" height="2.15" rx="0.12"></rect>
             <text class="tooltip-title" x="0.2" y="0.38">${stack.label} ×${stack.count}</text>
-            <text x="0.2" y="0.78">HP: ${Math.round(stack.health)}/${stack.maxHealth} · боец: ${stack.unitHealth}</text>
-            <text x="0.2" y="1.16">Урон: ${stack.damage} · Защита: ${stack.defense}</text>
-            <text x="0.2" y="1.54">Инициатива: ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</text>
+            <text x="0.2" y="0.78">Здоровье отряда: ${Math.round(stack.health)}/${stack.maxHealth}</text>
+            <text x="0.2" y="1.16">Здоровье бойца: ${stack.unitHealth}</text>
+            <text x="0.2" y="1.54">Урон: ${stack.damage} · Защита: ${stack.defense}</text>
+            <text x="0.2" y="1.92">Режим: ${stack.attackMode} · Иниц. ${stack.initiative} · ОД: ${stack.actionPoints}/${stack.maxActionPoints}</text>
           </g>`
         : '';
 
       return `<g class="${classes}" data-hex-x="${x}" data-hex-y="${y}" role="gridcell" aria-label="Клетка ${x + 1}, ${y + 1}">
         <polygon points="${points}"></polygon>
         ${unitMarkup}
+        ${healthBarMarkup}
         ${tooltipMarkup}
       </g>`;
     }).join('')).join('');
+    const attackMarkup = (() => {
+      const attack = test2State.attackAnimation;
+      if (!attack) {
+        return '';
+      }
+
+      const attacker = test2State.stacks[attack.attacker];
+      const target = test2State.stacks[attack.target];
+      const [attackerX, attackerY] = test2HexCenter(attacker.x, attacker.y);
+      const [targetX, targetY] = test2HexCenter(target.x, target.y);
+      const label = attack.attacker === 'knights' ? 'Рыцари → Демоны' : 'Демоны → Рыцари';
+      const damageAnimation = test2State.healthAnimation?.faction === attack.target
+        ? test2State.healthAnimation
+        : null;
+      const damageMarkup = damageAnimation
+        ? `<text class="hex-damage-number" x="${targetX + 0.42}" y="${targetY - 0.5}">-${damageAnimation.damage}</text>`
+        : '';
+      return `<g class="hex-attack-indicator ${attack.phase}" pointer-events="none">
+        <defs>
+          <marker id="test2-attack-arrow" markerWidth="0.28" markerHeight="0.28" refX="0.22" refY="0.14" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0 0L0.28 0.14L0 0.28Z"></path>
+          </marker>
+        </defs>
+        <line class="hex-attack-line" x1="${attackerX}" y1="${attackerY}" x2="${targetX}" y2="${targetY}" marker-end="url(#test2-attack-arrow)"></line>
+        <circle class="hex-attack-ring attacker" cx="${attackerX}" cy="${attackerY}" r="0.78"></circle>
+        <circle class="hex-attack-ring target" cx="${targetX}" cy="${targetY}" r="0.78"></circle>
+        <text class="hex-attack-label" x="${(attackerX + targetX) / 2}" y="${(attackerY + targetY) / 2 - 0.28}">${label}</text>
+        ${damageMarkup}
+      </g>`;
+    })();
 
     return `<div class="hex-board">
       <svg class="test2-hex-svg" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" role="grid" aria-label="Гексовое поле 12 на 6">
         ${cells}
+        ${attackMarkup}
       </svg>
     </div>`;
   })();
@@ -528,11 +609,12 @@ function renderTest2(): void {
     || test2State.playerBusy
     ? ' disabled'
     : '';
-  const animationClass = test2State.aiBusy && test2State.aiAnimation
-    ? ` is-ai-${test2State.aiAnimation}`
-    : test2State.playerBusy && test2State.playerAnimation
-      ? ` is-player-${test2State.playerAnimation}`
-      : '';
+  const attackOwnerClass = test2State.attackAnimation
+    ? test2State.attackAnimation.attacker === 'knights' ? ' is-player-attack' : ' is-ai-attack'
+    : '';
+  const animationClass = attackOwnerClass
+    || (test2State.aiBusy && test2State.aiAnimation ? ` is-ai-${test2State.aiAnimation}` : '')
+    || (test2State.playerBusy && test2State.playerAnimation ? ` is-player-${test2State.playerAnimation}` : '');
   const knights = test2State.stacks.knights;
   const healAmount = test2HealPreview();
   const healPreview = knights.abilityUsed ? '0/1 · +0 HP' : `+${healAmount} HP`;
@@ -623,6 +705,11 @@ function renderTest2(): void {
 
 function test2HexKey(x: number, y: number): string {
   return `${x}:${y}`;
+}
+
+function test2HexCenter(x: number, y: number): [number, number] {
+  const hexWidth = Math.sqrt(3);
+  return [hexWidth / 2 + x * hexWidth + (y % 2 === 1 ? hexWidth / 2 : 0), 1 + y * 1.5];
 }
 
 function test2FormationRows(count: number): number {
@@ -792,11 +879,7 @@ async function animateTest2KnightMovement(path: Array<[number, number]>): Promis
 async function animateTest2KnightAttack(): Promise<void> {
   test2State.playerBusy = true;
   test2State.playerAnimation = 'attack';
-  render('test2');
-  await wait(360);
-  test2Attack('knights');
-  render('test2');
-  await wait(260);
+  await test2Attack('knights', 360);
   test2State.playerBusy = false;
   test2State.playerAnimation = null;
   render('test2');
@@ -899,27 +982,56 @@ function finishTest2(result: 'win' | 'lose'): void {
   }, 760);
 }
 
-function test2CounterAttack(attackerId: Test2Faction, targetId: Test2Faction): void {
+function test2ApplyDamage(attackerId: Test2Faction, isCounter = false): void {
   const attacker = test2State.stacks[attackerId];
+  const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
   const target = test2State.stacks[targetId];
-
-  if (attacker.count <= 0 || target.count <= 0 || !test2CanAttack(attackerId)) {
-    return;
-  }
-
+  const previousHealth = target.health;
+  const previousCount = target.count;
   const damagePerUnit = Math.max(1, attacker.damage - target.defense);
   const damage = damagePerUnit * attacker.count;
+
   target.health = Math.max(0, target.health - damage);
   syncTest2Count(target);
+  test2State.healthAnimation = {
+    faction: targetId,
+    from: previousHealth,
+    to: target.health,
+    damage,
+  };
+  test2State.casualtyAnimation = target.count > 0 && target.count < previousCount
+    ? { faction: targetId, fromCount: previousCount, toCount: target.count }
+    : null;
   audioManager.playBattleSound('hit');
-  test2AddLog(`${attacker.label} отвечают: ${damage} урона. ${target.label} осталось: ${target.count}.`);
+  test2AddLog(`${attacker.label} ${isCounter ? 'контратакуют' : 'атакуют'}: ${damage} урона. ${target.label} осталось: ${target.count}.`);
 
   if (target.count <= 0) {
     finishTest2(attackerId === 'knights' ? 'win' : 'lose');
   }
 }
 
-function test2Attack(attackerId: Test2Faction): void {
+async function animateTest2AttackIndicator(
+  attackerId: Test2Faction,
+  targetId: Test2Faction,
+  windupDelay: number,
+  counter = false,
+): Promise<void> {
+  test2State.attackAnimation = {
+    attacker: attackerId,
+    target: targetId,
+    phase: 'windup',
+  };
+  render('test2');
+  await wait(windupDelay);
+  if (test2State.result) {
+    return;
+  }
+  test2State.attackAnimation.phase = counter ? 'counter' : 'impact';
+  render('test2');
+  await wait(TEST2_ATTACK_IMPACT_DELAY);
+}
+
+async function test2Attack(attackerId: Test2Faction, windupDelay = TEST2_ATTACK_WINDUP): Promise<boolean> {
   const attacker = test2State.stacks[attackerId];
   const targetId: Test2Faction = attackerId === 'knights' ? 'demons' : 'knights';
   const target = test2State.stacks[targetId];
@@ -928,24 +1040,39 @@ function test2Attack(attackerId: Test2Faction): void {
     test2AddLog(attacker.attackMode === 'melee'
       ? 'Атака невозможна: цель должна быть ровно на соседней клетке.'
       : `Атака невозможна: цель дальше ${TEST2_RANGE_ATTACK_DISTANCE} клеток.`);
-    return;
+    return false;
   }
 
-  const damagePerUnit = Math.max(1, attacker.damage - target.defense);
-  const damage = damagePerUnit * attacker.count;
-  target.health = Math.max(0, target.health - damage);
-  syncTest2Count(target);
-  attacker.actionPoints -= 1;
-  attacker.hasAttacked = true;
-  audioManager.playBattleSound('hit');
-  test2AddLog(`${attacker.label} атакуют: ${damage} урона. ${target.label} осталось: ${target.count}.`);
+  try {
+    await animateTest2AttackIndicator(attackerId, targetId, windupDelay);
+    if (test2State.result) {
+      return false;
+    }
 
-  if (target.count <= 0) {
-    finishTest2(attackerId === 'knights' ? 'win' : 'lose');
-    return;
+    attacker.actionPoints -= 1;
+    attacker.hasAttacked = true;
+    test2ApplyDamage(attackerId);
+    render('test2');
+    await wait(TEST2_HEALTH_ANIMATION_DELAY);
+
+    if (target.count > 0 && test2CanAttack(targetId)) {
+      test2State.healthAnimation = null;
+      test2State.casualtyAnimation = null;
+      await animateTest2AttackIndicator(targetId, attackerId, 300, true);
+      if (!test2State.result) {
+        test2ApplyDamage(targetId, true);
+        render('test2');
+        await wait(TEST2_HEALTH_ANIMATION_DELAY);
+      }
+    }
+
+    return true;
+  } finally {
+    test2State.attackAnimation = null;
+    test2State.healthAnimation = null;
+    test2State.casualtyAnimation = null;
+    render('test2');
   }
-
-  test2CounterAttack(targetId, attackerId);
 }
 
 function test2HealPreview(): number {
@@ -1015,11 +1142,7 @@ async function performTest2AiTurn(): Promise<void> {
 
   if (test2CanAttack('demons') && demons.actionPoints > 0) {
     test2State.aiAnimation = 'attack';
-    render('test2');
-    await wait(520);
-    test2Attack('demons');
-    render('test2');
-    await wait(420);
+    await test2Attack('demons');
   } else if (moved > 0) {
     test2AddLog(`Демоны потратили ${moved} ОД на сближение.`);
   } else if (!test2CanAttack('demons')) {

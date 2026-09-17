@@ -1075,6 +1075,12 @@ h1 {
   transform-origin: center;
 }
 
+.hex-svg-casualty {
+  animation: test2-casualty 360ms ease-in forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 .test2-screen.has-result .test2-hex-svg {
   pointer-events: none;
 }
@@ -1172,6 +1178,80 @@ h1 {
   font-weight: 800;
   pointer-events: none;
   text-anchor: middle;
+}
+
+.hex-svg-health {
+  pointer-events: none;
+}
+
+.hex-svg-health-bg {
+  fill: rgb(69 10 10 / 92%);
+  stroke: rgb(254 202 202 / 50%);
+  stroke-width: 0.02;
+}
+
+.hex-svg-health-fill {
+  fill: #ef4444;
+  transform-box: fill-box;
+  transform-origin: left center;
+  transform: scaleX(var(--health-to));
+}
+
+.hex-svg-health-fill.is-animating {
+  animation: test2-health-loss 360ms ease-out forwards;
+}
+
+.hex-attack-indicator {
+  overflow: visible;
+}
+
+.hex-attack-line {
+  fill: none;
+  stroke: #facc15;
+  stroke-dasharray: 0.18 0.1;
+  stroke-linecap: round;
+  stroke-width: 0.07;
+  filter: drop-shadow(0 0 0.08px rgb(250 204 21 / 90%));
+  animation: test2-attack-line 520ms linear infinite;
+}
+
+.hex-attack-line + .hex-attack-ring,
+.hex-attack-ring {
+  fill: none;
+  stroke-width: 0.07;
+}
+
+.hex-attack-ring.attacker {
+  stroke: #60a5fa;
+  animation: test2-attacker-pulse 520ms ease-in-out infinite alternate;
+}
+
+.hex-attack-ring.target {
+  stroke: #f87171;
+  animation: test2-target-pulse 320ms ease-in-out infinite alternate;
+}
+
+.hex-attack-label {
+  fill: #fef3c7;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.22px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: #020617;
+  stroke-width: 0.06;
+  text-anchor: middle;
+}
+
+.hex-damage-number {
+  fill: #fecaca;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.3px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: #450a0a;
+  stroke-width: 0.07;
+  text-anchor: middle;
+  animation: test2-damage-float 360ms ease-out forwards;
 }
 
 .hex-svg-cell:focus,
@@ -1484,6 +1564,76 @@ h1 {
 
   38% {
     filter: brightness(1.28) drop-shadow(0 0 0.1px rgb(191 219 254 / 85%));
+  }
+}
+
+@keyframes test2-health-loss {
+  from {
+    transform: scaleX(var(--health-from));
+  }
+
+  to {
+    transform: scaleX(var(--health-to));
+  }
+}
+
+@keyframes test2-damage-float {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-0.36px);
+  }
+}
+
+@keyframes test2-attack-line {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -0.56;
+  }
+}
+
+@keyframes test2-attacker-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes test2-target-pulse {
+  from {
+    opacity: 0.55;
+    transform: scale(0.96);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@keyframes test2-casualty {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(0.34px) rotate(28deg) scale(0.4);
   }
 }
 
