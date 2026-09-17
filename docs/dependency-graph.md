@@ -8,6 +8,8 @@
 flowchart TD
     browser[Браузер]
     html[index.html]
+    bgLayer[#background-layer\nявный слой изображения]
+    bgOverlay[#background-overlay\nзатемнение]
     entry[src/main.ts\nточка входа и экранное состояние]
     styles[src/style.css\nфон, анимация, меню, настройки]
     audio[src/audio.ts\nAudioManager]
@@ -30,6 +32,8 @@ flowchart TD
     vite[Vite\nсборка и dev preview]
 
     browser --> html
+    html --> bgLayer
+    html --> bgOverlay
     html --> entry
     entry --> styles
     entry --> audio
@@ -46,6 +50,8 @@ flowchart TD
     audio --> stone
     audio --> metal
     audio --> rune
+    styles --> bgLayer
+    styles --> bgOverlay
     styles --> background
     styles --> cursorDefault
     styles --> cursorPointer
@@ -63,7 +69,7 @@ flowchart TD
 
 | Узел | Ответственность | Что не должен знать |
 |---|---|---|
-| `index.html` | HTML-точка входа, корневой `#app` | Игровые правила и аудиологику |
+| `index.html` | HTML-точка входа, корневой `#app`, явные слои фона и затемнения | Игровые правила и аудиологику |
 | `src/main.ts` | Состояние экрана, рендер меню/заглушек/настроек, события UI | Детали генерации WAV |
 | `src/audio.ts` | Загрузка музыки и SFX, громкость, выбор пресета, запуск/остановка | Разметку экранов и CSS |
 | `src/style.css` | Фон, постоянная анимация фона, карточки, кнопки, бары, scrollbar, курсоры | Переключение экранов и аудиосостояние |
@@ -155,13 +161,21 @@ change на select
 ### Фон
 
 ```text
+index.html
+  -> #background-layer
+  -> #background-overlay
+  -> #app
+
 src/style.css
-  -> body::before
+  -> #background-layer
   -> background-image из menu-fantasy-background.png
   -> animation: background-float
+  -> #background-overlay
+  -> #app с z-index выше слоёв фона
 ```
 
-Анимация фона сейчас не управляется JavaScript и не имеет настройки выключения: она является постоянной частью визуального слоя.
+Анимация фона сейчас не управляется JavaScript и не имеет настройки выключения: она является постоянной частью визуального слоя. Явные DOM-слои нужны, чтобы фон не зависел от псевдоэлементов `body` и случайных stacking context-ов экранов.
+
 
 ## 5. Быстрая диагностика по симптому
 
@@ -169,8 +183,8 @@ src/style.css
 |---|---|
 | Белый/пустой экран | `index.html`, импорт `src/main.ts`, ошибку сборки TypeScript |
 | Меню не появляется | `#app`, `render('menu')`, ошибки в начале `main.ts` |
-| Фон исчез | URL `/assets/menu-fantasy-background.png`, `body::before`, `z-index`, `body::after` |
-| Фон не двигается | `animation` в `body::before`, `@keyframes background-float`, трансформацию `scale/translate` |
+| Фон исчез | URL `/assets/menu-fantasy-background.png`, `#background-layer`, `#background-overlay`, `z-index` |
+| Фон не двигается | `animation` в `#background-layer`, `@keyframes background-float`, трансформацию `scale/translate` |
 | Музыка не звучит | autoplay-блокировку, URL `/audio/menu-music.wav`, `musicVolume`, `startMusic()` |
 | Нет звука кнопок | выбранный `ButtonSound`, путь в `BUTTON_SOUND_FILES`, `buttonSoundVolume`, наличие WAV |
 | Смена звука даёт наложение/артефакт | `AudioManager.setSettings()`, `stopButtonSounds()`, повторное использование HTMLAudioElement |

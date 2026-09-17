@@ -26,22 +26,22 @@ body {
   cursor: url('/assets/cursor-default.svg') 4 2, default;
 }
 
-body::before,
-body::after {
+#background-layer,
+#background-overlay {
   position: fixed;
-  z-index: 0;
-  content: "";
   pointer-events: none;
 }
 
-body::before {
+#background-layer {
+  z-index: 0;
   inset: -6%;
   background: url('/assets/menu-fantasy-background.png') center / cover no-repeat;
   transform: scale(1.08);
   animation: background-float 18s ease-in-out infinite alternate;
 }
 
-body::after {
+#background-overlay {
+  z-index: 1;
   inset: 0;
   background:
     linear-gradient(180deg, rgb(2 6 23 / 36%), rgb(2 6 23 / 58%)),
@@ -50,7 +50,7 @@ body::after {
 
 #app {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   min-height: 100vh;
 }
 
