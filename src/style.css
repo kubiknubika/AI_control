@@ -2036,6 +2036,27 @@ h1 {
   stroke: #ffedd5;
 }
 
+.test3-ui-food-score,
+.test3-ui-icon .test3-ui-food-score {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 1.8;
+}
+
+.test3-ui-food-crust,
+.test3-ui-icon .test3-ui-food-crust {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 1.4;
+}
+
+.test3-ui-food-crumb,
+.test3-ui-icon .test3-ui-food-crumb {
+  fill: #fff7ed;
+  stroke: #b45309;
+  stroke-width: 0.8;
+}
+
 .test3-ui-wood-log,
 .test3-ui-icon .test3-ui-wood-log {
   fill: #92400e;
