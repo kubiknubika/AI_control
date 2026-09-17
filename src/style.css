@@ -989,9 +989,11 @@ h1 {
 }
 
 .hex-board {
-  display: grid;
-  min-width: 620px;
-  gap: 4px;
+  --hex-width: clamp(42px, 5.1vw, 82px);
+  --hex-height: calc(var(--hex-width) * 1.15);
+  display: flex;
+  min-width: calc(var(--hex-width) * 12.5);
+  flex-direction: column;
   padding: 12px;
   border: 1px solid rgb(96 165 250 / 26%);
   border-radius: 12px;
@@ -1002,51 +1004,70 @@ h1 {
 }
 
 .hex-row {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 4px;
+  display: flex;
+  width: max-content;
+  height: var(--hex-height);
+}
+
+.hex-row + .hex-row {
+  margin-top: calc(var(--hex-height) * -0.25);
 }
 
 .hex-row:nth-child(even) {
-  transform: translateX(2.2%);
+  margin-left: calc(var(--hex-width) * 0.5);
 }
 
 .hex-cell {
   position: relative;
   display: grid;
-  min-width: 0;
-  aspect-ratio: 1.15;
+  flex: 0 0 var(--hex-width);
+  width: var(--hex-width);
+  height: var(--hex-height);
   place-items: center;
   padding: 0;
   border: 0;
   color: #cbd5e1;
-  background: rgb(51 65 85 / 72%);
-  clip-path: polygon(25% 4%, 75% 4%, 98% 50%, 75% 96%, 25% 96%, 2% 50%);
+  background: rgb(100 116 139 / 72%);
+  clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
   cursor: url('/assets/cursor-pointer.svg') 7 3, pointer;
-  transition: background-color 120ms ease, filter 120ms ease, transform 120ms ease;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.hex-cell::before {
+  position: absolute;
+  inset: 2px;
+  z-index: 0;
+  background: rgb(51 65 85 / 82%);
+  clip-path: inherit;
+  content: '';
+  pointer-events: none;
 }
 
 .hex-cell:hover {
   filter: brightness(1.3);
 }
 
-.hex-cell.is-reachable {
-  background: rgb(22 101 52 / 82%);
+.hex-cell.is-reachable::before {
+  background: rgb(22 101 52 / 90%);
   box-shadow: inset 0 0 0 2px rgb(134 239 172 / 74%);
 }
 
 .hex-cell.is-selected {
-  background: rgb(37 99 235 / 88%);
   filter: brightness(1.25);
   transform: scale(1.04);
+  z-index: 2;
 }
 
-.hex-cell.is-demons {
-  background: rgb(127 29 29 / 76%);
+.hex-cell.is-selected::before {
+  background: rgb(37 99 235 / 92%);
 }
 
-.hex-cell.is-demons.is-selected {
-  background: rgb(185 28 28 / 90%);
+.hex-cell.is-demons::before {
+  background: rgb(127 29 29 / 86%);
+}
+
+.hex-cell.is-demons.is-selected::before {
+  background: rgb(185 28 28 / 94%);
 }
 
 .hex-unit {
@@ -1211,11 +1232,6 @@ h1 {
 .test2-action-attack:hover:not(:disabled) {
   border-color: #fecaca;
   background: rgb(185 28 28 / 88%);
-}
-
-.test2-action-end {
-  border-color: rgb(167 139 250 / 55%);
-  background: rgb(76 29 149 / 62%);
 }
 
 .test2-action:disabled {

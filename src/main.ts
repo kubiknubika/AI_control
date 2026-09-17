@@ -35,17 +35,6 @@ const BASE_ENEMY_DAMAGE = { min: 2, max: 4 };
 const LOG_LIMIT = 8;
 const TEST2_WIDTH = 12;
 const TEST2_HEIGHT = 6;
-const TEST2_SCHEDULE: Test2Faction[] = [
-  'knights',
-  'demons',
-  'knights',
-  'demons',
-  'knights',
-  'demons',
-  'knights',
-  'demons',
-  'knights',
-];
 const HIT_CHANCE = 0.95;
 
 const DEFAULT_SETTINGS: Settings = {
@@ -118,6 +107,7 @@ interface Test2Stack {
 
 interface Test2State {
   stacks: Record<Test2Faction, Test2Stack>;
+  schedule: Test2Faction[];
   scheduleIndex: number;
   cycle: number;
   selected: Test2Faction | null;
@@ -216,17 +206,44 @@ function createTest2State(): Test2State {
     abilityUsed: false,
   };
 
+  const stacks = { knights, demons };
+  const schedule = createTest2Schedule(stacks);
+
   return {
-    stacks: { knights, demons },
+    stacks,
+    schedule,
     scheduleIndex: 0,
     cycle: 1,
     selected: 'knights',
     result: null,
     log: [
-      'Инициатива: Рыцари 5, Демоны 4.',
+      `Инициатива: Рыцари ${knights.initiative}, Демоны ${demons.initiative}.`,
       'Рыцари ходят первыми. Выберите клетку или действие.',
     ],
   };
+}
+
+function createTest2Schedule(stacks: Record<Test2Faction, Test2Stack>): Test2Faction[] {
+  const factions: Test2Faction[] = ['knights', 'demons'];
+  const remaining = factions.reduce<Record<Test2Faction, number>>((result, faction) => {
+    result[faction] = stacks[faction].initiative;
+    return result;
+  }, { knights: 0, demons: 0 });
+  const schedule: Test2Faction[] = [];
+
+  while (factions.some((faction) => remaining[faction] > 0)) {
+    factions
+      .slice()
+      .sort((left, right) => stacks[right].initiative - stacks[left].initiative)
+      .forEach((faction) => {
+        if (remaining[faction] > 0) {
+          schedule.push(faction);
+          remaining[faction] -= 1;
+        }
+      });
+  }
+
+  return schedule;
 }
 
 function clampVolume(value: unknown): number {
@@ -351,7 +368,7 @@ function renderTests(): void {
 }
 
 function renderTest2(): void {
-  const currentFaction = TEST2_SCHEDULE[test2State.scheduleIndex];
+  const currentFaction = test2State.schedule[test2State.scheduleIndex];
   const currentStack = test2State.stacks[currentFaction];
   const selectedStack = test2State.selected ? test2State.stacks[test2State.selected] : null;
   const reachableCells = new Set<string>();
@@ -391,13 +408,12 @@ function renderTest2(): void {
     </div>
   `).join('');
 
-  const orderMarkup = TEST2_SCHEDULE.map((faction, index) => {
-    const ordinal = TEST2_SCHEDULE.slice(0, index + 1).filter((item) => item === faction).length;
+  const orderMarkup = test2State.schedule.map((faction, index) => {
+    const ordinal = test2State.schedule.slice(0, index + 1).filter((item) => item === faction).length;
     const current = index === test2State.scheduleIndex ? ' is-current' : '';
     return `<span class="test2-order-item ${faction}${current}">${faction === 'knights' ? 'Рыцари' : 'Демоны'} ${ordinal}</span>`;
   }).join('');
   const actionDisabled = currentFaction !== 'knights' || test2State.result !== null ? ' disabled' : '';
-  const attackDisabled = actionDisabled || currentStack.hasAttacked || currentStack.actionPoints < 1 || !test2CanAttack('knights') ? ' disabled' : '';
   const healDisabled = actionDisabled || currentStack.abilityUsed || currentStack.actionPoints < 1 ? ' disabled' : '';
   const resultMarkup = test2State.result
     ? `<div class="test2-result ${test2State.result}">${test2State.result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.'}</div>`
@@ -422,7 +438,7 @@ function renderTest2(): void {
         <section class="test2-order-panel" aria-label="Порядок действий">
           <div class="test2-panel-heading">
             <strong>Порядок действий</strong>
-            <span>Рыцари получают 5 ходов, демоны — 4</span>
+            <span>Рыцари получают ${test2State.stacks.knights.initiative} ходов, демоны — ${test2State.stacks.demons.initiative}</span>
           </div>
           <div class="test2-order-list">${orderMarkup}</div>
         </section>
@@ -448,18 +464,18 @@ function renderTest2(): void {
                 <span>Очки действий</span>
                 <strong>${currentStack.actionPoints}/${currentStack.maxActionPoints}</strong>
               </div>
-              <button class="test2-action test2-action-attack" type="button" data-test2-action="attack"${attackDisabled}>
+              <div class="test2-action test2-action-attack test2-action-hint">
                 <strong>Атаковать</strong>
-                <small>Соседняя клетка · 1 ОД</small>
-              </button>
+                <small>Нажмите на соседнюю клетку Демонов · 1 ОД</small>
+              </div>
               <button class="test2-action" type="button" data-test2-action="heal"${healDisabled}>
                 <strong>Исцелить отряд</strong>
-                <small>10 HP × число рыцарей · 1 ОД</small>
+                <small>10 HP × число рыцарей · 1 ОД · 1 раз за бой</small>
               </button>
-              <button class="test2-action test2-action-end" type="button" data-test2-action="end"${actionDisabled}>
-                <strong>Закончить ход</strong>
-                <small>Передать инициативу</small>
-              </button>
+              <div class="test2-action test2-action-move test2-action-hint">
+                <strong>Перемещение</strong>
+                <small>Выберите подсвеченную клетку · до 4 клеток</small>
+              </div>
             </section>
 
             <section class="test2-log-panel" aria-labelledby="test2-log-title">
@@ -480,7 +496,7 @@ function renderTest2(): void {
 }
 
 function renderTest2StackCard(stack: Test2Stack, side: 'player' | 'ai'): string {
-  const current = TEST2_SCHEDULE[test2State.scheduleIndex] === stack.id ? ' is-active' : '';
+  const current = test2State.schedule[test2State.scheduleIndex] === stack.id ? ' is-active' : '';
   const healthPercentValue = Math.max(0, Math.min(100, (stack.health / stack.maxHealth) * 100));
 
   return `
@@ -574,7 +590,36 @@ function test2AddLog(text: string): void {
 function resetTest2Turn(stack: Test2Stack): void {
   stack.actionPoints = stack.maxActionPoints;
   stack.hasAttacked = false;
-  stack.abilityUsed = false;
+}
+
+function finishTest2(result: 'win' | 'lose'): void {
+  if (test2State.result) {
+    return;
+  }
+
+  test2State.result = result;
+  audioManager.playBattleSound(result === 'win' ? 'victory' : 'defeat');
+  test2AddLog(result === 'win' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.');
+}
+
+function test2CounterAttack(attackerId: Test2Faction, targetId: Test2Faction): void {
+  const attacker = test2State.stacks[attackerId];
+  const target = test2State.stacks[targetId];
+
+  if (attacker.count <= 0 || target.count <= 0 || test2Distance(attacker.x, attacker.y, target.x, target.y) !== 1) {
+    return;
+  }
+
+  const damagePerUnit = Math.max(1, attacker.damage - target.defense);
+  const damage = damagePerUnit * attacker.count;
+  target.health = Math.max(0, target.health - damage);
+  syncTest2Count(target);
+  audioManager.playBattleSound('hit');
+  test2AddLog(`${attacker.label} отвечают: ${damage} урона. ${target.label} осталось: ${target.count}.`);
+
+  if (target.count <= 0) {
+    finishTest2(attackerId === 'knights' ? 'win' : 'lose');
+  }
 }
 
 function test2Attack(attackerId: Test2Faction): void {
@@ -597,25 +642,28 @@ function test2Attack(attackerId: Test2Faction): void {
   test2AddLog(`${attacker.label} атакуют: ${damage} урона. ${target.label} осталось: ${target.count}.`);
 
   if (target.count <= 0) {
-    test2State.result = attackerId === 'knights' ? 'win' : 'lose';
-    audioManager.playBattleSound(attackerId === 'knights' ? 'victory' : 'defeat');
-    test2AddLog(attackerId === 'knights' ? 'Победа! Демоны разбиты.' : 'Поражение. Рыцари уничтожены.');
-  }
-}
-
-function test2Heal(): void {
-  const knights = test2State.stacks.knights;
-  if (knights.abilityUsed || knights.actionPoints < 1 || knights.count <= 0) {
+    finishTest2(attackerId === 'knights' ? 'win' : 'lose');
     return;
   }
 
+  test2CounterAttack(targetId, attackerId);
+}
+
+function test2Heal(): boolean {
+  const knights = test2State.stacks.knights;
+  if (knights.abilityUsed || knights.actionPoints < 1 || knights.count <= 0) {
+    return false;
+  }
+
   const amount = 10 * knights.count;
-  const healed = Math.min(amount, knights.maxHealth - knights.health);
+  const currentUnitCapacity = knights.count * knights.unitHealth;
+  const healed = Math.min(amount, Math.max(0, currentUnitCapacity - knights.health));
   knights.health += healed;
   knights.actionPoints -= 1;
   knights.abilityUsed = true;
   audioManager.playBattleSound('magic');
   test2AddLog(`Исцеление отряда: +${healed} HP (${knights.count} рыцарей × 10).`);
+  return true;
 }
 
 function performTest2AiTurn(): void {
@@ -661,13 +709,13 @@ function advanceTest2Turn(): void {
   test2State.stacks.knights.actionPoints = 0;
   let attempts = 0;
 
-  while (attempts < TEST2_SCHEDULE.length) {
-    test2State.scheduleIndex = (test2State.scheduleIndex + 1) % TEST2_SCHEDULE.length;
+  while (attempts < test2State.schedule.length) {
+    test2State.scheduleIndex = (test2State.scheduleIndex + 1) % test2State.schedule.length;
     if (test2State.scheduleIndex === 0) {
       test2State.cycle += 1;
     }
 
-    const faction = TEST2_SCHEDULE[test2State.scheduleIndex];
+    const faction = test2State.schedule[test2State.scheduleIndex];
     const stack = test2State.stacks[faction];
     attempts += 1;
 
@@ -694,15 +742,11 @@ function advanceTest2Turn(): void {
 }
 
 function handleTest2Action(action: string): void {
-  if (test2State.result || TEST2_SCHEDULE[test2State.scheduleIndex] !== 'knights') {
+  if (test2State.result || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
     return;
   }
 
-  if (action === 'attack') {
-    test2Attack('knights');
-  } else if (action === 'heal') {
-    test2Heal();
-  } else if (action === 'end') {
+  if (action === 'heal' && test2Heal()) {
     advanceTest2Turn();
     return;
   }
@@ -711,7 +755,7 @@ function handleTest2Action(action: string): void {
 }
 
 function handleTest2Cell(x: number, y: number): void {
-  if (test2State.result || TEST2_SCHEDULE[test2State.scheduleIndex] !== 'knights') {
+  if (test2State.result || test2State.schedule[test2State.scheduleIndex] !== 'knights') {
     return;
   }
 
@@ -724,7 +768,22 @@ function handleTest2Cell(x: number, y: number): void {
     return;
   }
 
-  if (occupant || test2State.selected !== 'knights') {
+  if (occupant?.id === 'demons') {
+    if (test2CanAttack('knights') && knights.actionPoints > 0 && !knights.hasAttacked) {
+      test2Attack('knights');
+      if (!test2State.result) {
+        advanceTest2Turn();
+      } else {
+        render('test2');
+      }
+    } else {
+      test2AddLog('Атаковать можно только соседний отряд и один раз за ход.');
+      render('test2');
+    }
+    return;
+  }
+
+  if (test2State.selected !== 'knights') {
     return;
   }
 
@@ -738,8 +797,8 @@ function handleTest2Cell(x: number, y: number): void {
   knights.x = x;
   knights.y = y;
   knights.actionPoints -= distance;
-  test2AddLog(`Рыцари переместились на ${distance} клетк${distance === 1 ? 'у' : 'и'}. Осталось ОД: ${knights.actionPoints}.`);
-  render('test2');
+  test2AddLog(`Рыцари переместились на ${distance} клетк${distance === 1 ? 'у' : 'и'} и завершили ход.`);
+  advanceTest2Turn();
 }
 
 function renderDifficulty(): void {
