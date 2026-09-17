@@ -2006,6 +2006,11 @@ h1 {
   font-weight: 900;
 }
 
+.test3-resource-icon .test3-ui-icon {
+  width: 26px;
+  height: 26px;
+}
+
 .test3-ui-icon {
   display: block;
   width: 20px;
@@ -2027,8 +2032,8 @@ h1 {
 
 .test3-ui-food-loaf,
 .test3-ui-icon .test3-ui-food-loaf {
-  fill: #d97706;
-  stroke: #fed7aa;
+  fill: #f59e0b;
+  stroke: #ffedd5;
 }
 
 .test3-ui-wood-log,
@@ -2660,6 +2665,13 @@ h1 {
 .test3-icon-svg .test3-icon-stone {
   fill: #64748b;
   stroke: #cbd5e1;
+}
+
+.test3-icon-roof,
+.test3-icon-svg .test3-icon-roof {
+  fill: none;
+  stroke: #c08457;
+  stroke-width: 2.2;
 }
 
 .test3-icon-mine-dark,
