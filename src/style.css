@@ -1835,6 +1835,14 @@ h1 {
   stroke-width: 1.8;
 }
 
+.test3-ui-icon-wood {
+  fill: rgb(161 98 7 / 42%);
+}
+
+.test3-ui-icon-stone {
+  fill: rgb(148 163 184 / 42%);
+}
+
 .test3-build-cost .test3-ui-icon,
 .test3-selection-action .test3-ui-icon {
   display: inline-block;
@@ -1895,8 +1903,8 @@ h1 {
 
 .test3-resource-wood .test3-resource-icon,
 .test3-build-cost .is-wood {
-  color: #bbf7d0;
-  background: rgb(21 128 61 / 30%);
+  color: #f0c27b;
+  background: rgb(120 53 15 / 38%);
 }
 
 .test3-resource-stone {
@@ -2454,10 +2462,28 @@ h1 {
   stroke: #bae6fd;
 }
 
+.test3-icon-crate,
+.test3-icon-svg .test3-icon-crate {
+  fill: #a16207;
+  stroke: #fbbf24;
+}
+
+.test3-icon-crane,
+.test3-icon-svg .test3-icon-crane {
+  fill: none;
+  stroke: #facc15;
+}
+
 .test3-icon-fish,
 .test3-icon-svg .test3-icon-fish {
-  fill: #fb923c;
-  stroke: #fed7aa;
+  fill: #bae6fd;
+  stroke: #e0f2fe;
+}
+
+.test3-icon-fish-eye,
+.test3-icon-svg .test3-icon-fish-eye {
+  fill: #0f172a;
+  stroke: #0f172a;
 }
 
 .test3-building strong {

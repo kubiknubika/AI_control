@@ -1495,14 +1495,14 @@ type Test3UiIcon = Test3Resource | 'workers' | 'army' | 'fleet';
 function test3UiIcon(type: Test3UiIcon): string {
   const icons: Record<Test3UiIcon, string> = {
     gold: '<circle cx="16" cy="16" r="10"/><path d="m16 9 4 7-4 7-4-7 4-7Z"/>',
-    wood: '<path d="M8 10h16c2 0 4 2 4 6s-2 6-4 6H8c-2 0-4-2-4-6s2-6 4-6Z"/><ellipse cx="8" cy="16" rx="4" ry="6"/><path d="M19 11v10M23 12v8"/>',
-    stone: '<ellipse cx="11" cy="21" rx="7" ry="5"/><ellipse cx="22" cy="19" rx="6" ry="7"/><path d="m8 20 3-2M20 18l3-2M16 25l2-2"/>',
+    wood: '<path d="M8 8h16c3 0 5 3 5 8s-2 8-5 8H8c-3 0-5-3-5-8s2-8 5-8Z"/><ellipse cx="8" cy="16" rx="5" ry="8"/><ellipse cx="8" cy="16" rx="2.5" ry="4.5"/><path d="M20 9v14"/>',
+    stone: '<path d="M4 23 7 14l7-5 7 2 7 8-3 8H9L4 23Z"/><path d="m7 14 7 5 7-4M14 19l-2 8M21 15l4 4"/>',
     food: '<path d="M16 28V7M16 13 9 7M16 18l8-8M12 28V14M12 17l-6-6M20 28V13M20 17l6-6M9 7l-2-2M24 10l2-2"/>',
     workers: '<path d="M10 11c0-3 2-5 6-5s6 2 6 5M8 12h16M16 6V4M8 28c0-6 3-9 8-9s8 3 8 9M5 18l4 4M27 18l-4 4"/><circle cx="16" cy="12" r="4"/>',
     army: '<path d="M16 4 25 8v7c0 7-3 11-9 14-6-3-9-7-9-14V8l9-4Z"/><path d="m10 22 12-12M18 9l5 5M9 23l4-1"/>',
     fleet: '<path d="M4 22h24l-4 5H8l-4-5ZM9 22l3-12h7l4 12M16 10V4M16 5l8 5H16"/><path d="M3 28c3 2 5-2 8 0s5-2 8 0 5-2 10 0"/>',
   };
-  return `<svg class="test3-ui-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
+  return `<svg class="test3-ui-icon test3-ui-icon-${type}" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
 }
 
 function test3CostLabel(resource: Test3Resource, value: number): string {
@@ -1512,14 +1512,14 @@ function test3CostLabel(resource: Test3Resource, value: number): string {
 function test3BuildingIcon(type: Test3BuildingType): string {
   const icons: Record<Test3BuildingType, string> = {
     townHall: '<path d="M4 28h24M7 28V14h18v14M4 14h24L16 7 4 14Z"/><path d="M16 7V3l5 2-5 2M10 18v10M16 18v10M22 18v10"/><circle cx="16" cy="13" r="2"/>',
-    goldMine: '<path d="M5 27h22M8 27V18a8 8 0 0 1 16 0v9M12 27v-9a4 4 0 0 1 8 0v9"/><path d="M5 7h11M9 4v3M9 7l10 10"/><path class="test3-icon-gold" d="m11 23 3-3 4 2 3-3 3 4-2 4h-8l-3-2Z"/>',
-    sawmill: '<path d="M4 27h24M6 27v-7h10v7M6 20h10"/><path class="test3-icon-wood" d="M4 20h12v7H4z"/><circle cx="22" cy="16" r="7"/><circle cx="22" cy="16" r="2"/><path d="M22 9v5M22 18v5M15 16h5M24 16h5M17 11l3 3M24 18l3 3M27 11l-3 3M20 18l-3 3"/>',
+    goldMine: '<path d="M5 28h22M7 28V9h18v19M7 16h18M12 9v19M20 9v19"/><circle cx="16" cy="5" r="2"/><path d="M12 5h8M16 7v4"/><path class="test3-icon-gold" d="m11 23 3-3 4 2 3-3 3 4-2 5h-8l-3-2Z"/>',
+    sawmill: '<path d="M4 27h24M6 27v-7h10v7"/><path class="test3-icon-wood" d="M4 20h12v7H4z"/><circle cx="22" cy="16" r="7"/><circle cx="22" cy="16" r="2"/><path d="M22 9v5M22 18v5M15 16h5M24 16h5M17 11l3 3M24 18l3 3M27 11l-3 3M20 18l-3 3"/>',
     quarry: '<path class="test3-icon-stone" d="M5 17 10 9l8 2 6-4 4 8-2 11H7L5 17Z"/><path d="M8 22l4-3 3 4 4-3 4 2M18 5h10M21 5l-7 15"/>',
-    house: '<path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M12 28V19h8v9M7 7h7v6M7 7h7M9 17h4v4H9zM19 17h4v4h-4zM11 17v4M9 19h4M21 17v4M19 19h4"/>',
-    warehouse: '<path d="M3 10h26v18H3V10Z"/><path d="M6 15h12v13H6V15ZM21 16h5v5h-5zM21 23h5v5h-5zM6 20h12M12 15v13M21 18h5M23 16v5M21 25h5M23 23v5"/>',
-    barracks: '<path d="M3 12h26v16H3V12ZM6 12V8h20v4"/><path d="M7 17h4v4H7zM14 17h4v4h-4zM21 17h4v4h-4zM16 4v4M16 4l5 2-5 2"/>',
-    shipyard: '<path d="M4 28h24M7 24h20l-4 4H10l-3-4Z"/><path d="M8 24V6h2v18M9 7h18v2H9M27 9v8c0 2-2 3-3 1"/><path class="test3-icon-hull" d="M12 20h14l-3 4H15l-3-4Z"/>',
-    fishingYard: '<path class="test3-icon-fish" d="M4 18c5-7 12-7 18 0-6 7-13 7-18 0Z"/><path d="m21 18 7-5v10l-7-5Z"/><circle cx="10" cy="16" r="1"/>',
+    house: '<path d="m4 15 12-10 12 10v13H4V15Z"/><path d="M11 28v-7h5v7M22 14V8h4v6M21 8h6M9 17h3v3H9zM20 17h3v3h-3zM10.5 17v3M9 18.5h3M21.5 17v3M20 18.5h3"/>',
+    warehouse: '<path d="M3 9h26v19H3V9Z"/><path d="M6 14h13v14H6V14ZM6 19h13M12 14v14"/><path class="test3-icon-crate" d="M21 15h6v6h-6zM21 23h6v5h-6zM21 18h6M24 15v6M21 25h6M24 23v5"/>',
+    barracks: '<path d="M3 13h26v15H3V13ZM6 13V10h20v3"/><path d="M7 17h4v6H7zM14 17h4v6h-4zM21 17h4v6h-4zM16 4v6M16 4h6l-3 3h3"/>',
+    shipyard: '<path d="M3 28h26M5 25h22"/><path class="test3-icon-hull" d="M6 19h22l-4 7H11l-5-7Z"/><path class="test3-icon-crane" d="M8 25V5h2v20M9 6h19v2H9M28 8v9c0 2-2 3-3 1"/><path d="M13 22h2M18 22h2"/>',
+    fishingYard: '<path class="test3-icon-fish" d="M4 18c5-7 12-7 18 0-6 7-13 7-18 0ZM21 18l7-5v10l-7-5Z"/><circle class="test3-icon-fish-eye" cx="10" cy="16" r="1"/>',
   };
   return `<svg class="test3-icon-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">${icons[type]}</svg>`;
 }
