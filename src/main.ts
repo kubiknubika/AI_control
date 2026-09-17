@@ -1283,7 +1283,7 @@ function renderTest3(): void {
 
   const ghostValidityClass = previewPlacement?.valid ? ' is-valid' : ' is-invalid';
   const ghostMarkup = previewAnchor && test3State.selectedBuildingType && selectedDefinition && previewPlacement
-    ? `<div class="test3-building test3-building-ghost${ghostValidityClass} test3-building-${test3State.selectedBuildingType}" style="grid-column: ${previewAnchor.x + 1} / span ${selectedDefinition.width}; grid-row: ${previewAnchor.y + 1} / span ${selectedDefinition.height};" aria-hidden="true">
+    ? `<div class="test3-building test3-building-ghost${ghostValidityClass} test3-building-${test3State.selectedBuildingType}" style="left: calc(${(previewAnchor.x / TEST3_WIDTH) * 100}% + 2px); top: calc(${(previewAnchor.y / TEST3_HEIGHT) * 100}% + 2px); width: calc(${(selectedDefinition.width / TEST3_WIDTH) * 100}% - 4px); height: calc(${(selectedDefinition.height / TEST3_HEIGHT) * 100}% - 4px);" aria-hidden="true">
         <span class="test3-building-icon">${selectedDefinition.icon}</span>
         <strong>${selectedDefinition.label}</strong>
         <small>${previewPlacement.valid ? `Предпросмотр ${selectedDefinition.width}×${selectedDefinition.height}` : previewPlacement.reason}</small>
@@ -1307,7 +1307,7 @@ function renderTest3(): void {
         : definition.production
           ? `+${test3ProductionAmount(building)} / 2 сек · ур. ${building.level}`
           : `Готово · ур. ${building.level}`;
-    return `<div class="test3-building test3-building-${building.type}${selected}${building.complete ? ' is-complete' : ' is-under-construction'}${building.upgrading ? ' is-upgrading' : ''}" style="grid-column: ${building.x + 1} / span ${building.width}; grid-row: ${building.y + 1} / span ${building.height};" aria-label="${definition.label}">
+    return `<div class="test3-building test3-building-${building.type}${selected}${building.complete ? ' is-complete' : ' is-under-construction'}${building.upgrading ? ' is-upgrading' : ''}" style="left: calc(${(building.x / TEST3_WIDTH) * 100}% + 3px); top: calc(${(building.y / TEST3_HEIGHT) * 100}% + 3px); width: calc(${(building.width / TEST3_WIDTH) * 100}% - 6px); height: calc(${(building.height / TEST3_HEIGHT) * 100}% - 6px);" aria-label="${definition.label}">
       <span class="test3-building-icon">${definition.icon}</span>
       <strong>${definition.label}</strong>
       <small>${statusText}</small>
@@ -1450,7 +1450,9 @@ function renderTest3(): void {
             </div>
             <div class="test3-map-wrap${mapClass}">
               <div class="test3-map" style="--test3-columns: ${TEST3_WIDTH}; --test3-rows: ${TEST3_HEIGHT};">
-                ${mapTiles}
+                <div class="test3-map-tiles">
+                  ${mapTiles}
+                </div>
                 ${ghostMarkup}
                 ${buildingMarkup}
               </div>
