@@ -9,8 +9,8 @@ export const BUTTON_SOUND_LABELS: Record<ButtonSound, string> = {
 };
 
 export interface AudioSettings {
-  musicEnabled: boolean;
-  buttonSoundsEnabled: boolean;
+  musicVolume: number;
+  buttonSoundVolume: number;
   buttonSound: ButtonSound;
 }
 
@@ -22,28 +22,44 @@ const BUTTON_SOUND_FILES: Record<ButtonSound, string> = {
   chime: '/audio/button-chime.wav',
 };
 
+const MAX_MIX_VOLUME = 0.62;
+
 export class AudioManager {
   private readonly music: HTMLAudioElement;
+  private readonly buttonSounds: Record<ButtonSound, HTMLAudioElement>;
   private settings: AudioSettings;
 
   public constructor(settings: AudioSettings) {
     this.music = new Audio('/audio/menu-music.wav');
     this.music.loop = true;
     this.music.preload = 'auto';
-    this.music.volume = 0.28;
-    this.settings = settings;
+    this.buttonSounds = {
+      soft: createAudio(BUTTON_SOUND_FILES.soft),
+      arcane: createAudio(BUTTON_SOUND_FILES.arcane),
+      stone: createAudio(BUTTON_SOUND_FILES.stone),
+      metal: createAudio(BUTTON_SOUND_FILES.metal),
+      chime: createAudio(BUTTON_SOUND_FILES.chime),
+    };
+    this.settings = { ...settings };
+    this.applyVolumes();
   }
 
   public setSettings(settings: AudioSettings): void {
-    this.settings = settings;
+    const soundChanged = this.settings.buttonSound !== settings.buttonSound;
+    this.settings = { ...settings };
+    this.applyVolumes();
 
-    if (!settings.musicEnabled) {
+    if (this.settings.musicVolume <= 0) {
       this.stopMusic();
+    }
+
+    if (soundChanged) {
+      this.stopButtonSounds();
     }
   }
 
   public startMusic(): void {
-    if (!this.settings.musicEnabled || !this.music.paused) {
+    if (this.settings.musicVolume <= 0 || !this.music.paused) {
       return;
     }
 
@@ -53,20 +69,38 @@ export class AudioManager {
   }
 
   public playButtonSound(): void {
-    if (!this.settings.buttonSoundsEnabled) {
+    if (this.settings.buttonSoundVolume <= 0) {
       return;
     }
 
-    const sound = new Audio(BUTTON_SOUND_FILES[this.settings.buttonSound]);
-    sound.preload = 'auto';
-    sound.volume = 0.42;
+    const sound = this.buttonSounds[this.settings.buttonSound];
+    sound.pause();
+    sound.currentTime = 0;
+    sound.volume = (this.settings.buttonSoundVolume / 100) * MAX_MIX_VOLUME;
     void sound.play().catch(() => {
       // Ошибка воспроизведения не должна ломать навигацию меню.
     });
+  }
+
+  private applyVolumes(): void {
+    this.music.volume = (this.settings.musicVolume / 100) * MAX_MIX_VOLUME;
   }
 
   private stopMusic(): void {
     this.music.pause();
     this.music.currentTime = 0;
   }
+
+  private stopButtonSounds(): void {
+    Object.values(this.buttonSounds).forEach((sound) => {
+      sound.pause();
+      sound.currentTime = 0;
+    });
+  }
+}
+
+function createAudio(source: string): HTMLAudioElement {
+  const audio = new Audio(source);
+  audio.preload = 'auto';
+  return audio;
 }
